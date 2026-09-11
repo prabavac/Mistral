@@ -67,3 +67,12 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# PlatformIO / editor / OS
+.pio/
+.vscode/
+.DS_Store
+
+# Slicer output (CAD sources stay tracked)
+*.gcode
+*.3mf
