@@ -61,14 +61,19 @@ motor) is the reference for the mechanical and control approach. Borrow its
 - **Anti-windup:** saturation flags propagate **back up** the control chain and
   freeze upstream integrators.
 - **TVC** (`tvc`): the interface takes **TVC degrees** and applies the gear ratio
-  internally. Each servo has a `ServoCal` with `centerUs`, `usPerServoDeg`,
+  internally. Each servo has a `ServoCal` with `centreUs`, `usPerServoDeg`,
   `gearRatio`, `dir`, and a `minUs`/`maxUs` backstop.
   - `GEAR_RATIO_X = 3.0`.
   - `GEAR_RATIO_Y = 4.0`, **on purpose**. Servo-y's gear revolves around the TVC
     axis as it rotates, so it needs one extra full rotation per 360° of TVC travel.
-- **Motors** (`motors`): two independent ESC channels, commanded as
-  `setThrust(common, differential)`.
+- **Throttle** (`throttle`): two independent ESC channels, commanded with
+  `setNormalised(0..1)` and `setDifferential(delta)`.
+- **Ground link** (`wifi_link`): WiFi SoftAP + WebSocket on core 0. The control loop
+  (core 1) polls commands and never blocks on the network.
 - **Control loop:** 100 Hz.
+
+Actuator hardware, calibration, ESC procedure and comms detail:
+[`docs/actuators-comms.md`](docs/actuators-comms.md).
 
 ### PWM conventions — do not deviate
 
@@ -109,14 +114,16 @@ Resolve these during bring-up and record the answers here.
 
 - [ ] MTF-01P UART pins (placeholders in config).
 - [ ] ICM-42688 SPI pins, and which driver library.
-- [ ] ESC model, and whether it arms on a 3.3 V signal (Zephyr's needed a
-      74AHCT125N buffer).
+- [x] ESC model: 2× 12 A with BEC, driven direct from 3.3 V — no buffer.
 - [ ] Battery.
-- [ ] `ServoCal` values: centers, µs/deg, backstops, and signs (on the stand).
-- [ ] `ARM_HOLD_MS` and `MTF01_TIMEOUT_MS` (placeholders in config).
+- [ ] `ServoCal` values. Centres and backstops are MEASURED; `usPerServoDeg` and the
+      absolute gear-ratio scale need a protractor check; signs verified on the stand.
+- [x] `ARM_HOLD_MS` = 3000.
+- [ ] `MTF01_TIMEOUT_MS` (placeholder in config).
+- [ ] Total thrust: 480–560 g, unresolved — measure on a thrust stand.
 - [ ] LQR state and input vector. The config holds a proposal:
       x = [pitch, roll, pitch rate, roll rate, yaw rate, ∫pitch, ∫roll, ∫yaw rate],
       u = [tvcX, tvcY, differential].
 - [ ] Flow rotation compensation. Does the MTF-01P remove body rotation
       internally, or must fusion subtract gyro rates, as tvc-drone does?
-- [ ] Which gimbal axis (X/Y) corrects pitch and which corrects roll.
+- [x] Gimbal axes: X corrects pitch, Y corrects roll.

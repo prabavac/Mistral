@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d0f12">
+<title>Mistral Ground Station</title>
+<!-- Mistral ground station. THE ONLY COPY: platformio.ini embeds this file into the
+     firmware at build time and lib/wifi_link serves it from flash — edit here, reflash.
+     Self-contained: no CDN, no external assets, works with no internet.
+     Join the AP "mistral-xxxx" and open http://192.168.4.1, or open this file straight
+     from disk while joined — it falls back to 192.168.4.1.
+
+     Bench bring-up build: status bar, KILL, arm/disarm, throttle and a nozzle readout.
+     The remaining panels are designed in docs/actuators-comms.md §4. -->
+<style>
+:root{--bg:#0d0f12;--panel:#171a1f;--well:#11141a;--line:#262b33;--ink:#e6e8eb;--dim:#8a919a;
+ --grey:#4b525c;--amber:#e0a33a;--green:#3ec85f;--red:#d9453b}
+*{box-sizing:border-box}
+html,body{background:var(--bg)}
+body{margin:0;font:15px/1.4 system-ui,-apple-system,sans-serif;color:var(--ink);-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit}
+.top{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:12px;padding:10px 16px;
+ background:rgba(13,15,18,.96);border-bottom:1px solid var(--line)}
+.status{flex:1;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;min-width:0}
+.top h1{margin:0;font-size:16px;letter-spacing:.14em}
+.pill{font:700 12px ui-monospace,monospace;letter-spacing:.06em;padding:4px 9px;border-radius:999px;background:var(--grey);color:var(--ink)}
+.pill.no-data{background:transparent;border:1px solid var(--line);color:var(--dim)}
+.pill.arming{background:var(--amber);color:#111;animation:pulse 1s infinite}
+.pill.armed{background:var(--amber);color:#111}
+.pill.killed{background:var(--red);color:#fff}
+@keyframes pulse{50%{opacity:.45}}
+.meta{font:12px ui-monospace,monospace;color:var(--dim)}
+.meta.ok{color:var(--green)}
+.meta.stale{color:var(--amber)}
+.meta.down{color:var(--red)}
+.kill{flex:0 0 auto;min-width:92px;min-height:54px;border:0;border-radius:12px;background:var(--red);color:#fff;
+ font-weight:800;font-size:19px;letter-spacing:.1em;box-shadow:0 3px 0 #7d1f19}
+.kill:active{transform:translateY(2px);box-shadow:0 1px 0 #7d1f19}
+main{max-width:720px;margin:0 auto;padding:12px 16px 32px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+h2{margin:0 0 10px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.row{display:flex;gap:10px}
+.btn{flex:1;min-height:52px;border:1px solid var(--line);border-radius:10px;background:#222730;font-weight:700;letter-spacing:.06em}
+.btn:active{background:#2b313b}
+.btn.confirm{background:var(--amber);border-color:var(--amber);color:#111}
+.btn:disabled{opacity:.35}
+.note{margin:8px 0 0;min-height:1.4em;font-size:13px;color:var(--dim)}
+.throttle{display:flex;gap:18px;align-items:stretch}
+.slider-wrap{flex:0 0 auto;padding:16px 8px}
+.vslider{position:relative;width:76px;height:min(340px,50vh);border-radius:14px;background:var(--well);border:1px solid var(--line);
+ touch-action:none;user-select:none;-webkit-user-select:none;cursor:ns-resize}
+.vslider .fill{position:absolute;left:0;right:0;bottom:0;height:0;border-radius:0 0 13px 13px;background:linear-gradient(0deg,#9c6718,var(--amber))}
+.vslider .thumb{position:absolute;left:-8px;right:-8px;bottom:0;height:30px;transform:translateY(50%);border-radius:9px;
+ background:#e6e8eb;box-shadow:0 2px 8px rgba(0,0,0,.6)}
+.vslider[aria-disabled="true"]{opacity:.3;cursor:not-allowed}
+.vslider:focus-visible{outline:2px solid var(--amber);outline-offset:4px}
+.readouts{flex:1;display:grid;gap:8px;align-content:start;min-width:0}
+.ro{background:var(--well);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.ro .k{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.ro .v{font:700 22px ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--dim)}
+.check input{width:20px;height:20px;accent-color:var(--amber)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sat{color:var(--amber)}
+pre{margin:0;font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;word-break:break-all;max-height:40vh;overflow:auto}
+summary{cursor:pointer;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+details[open] summary{margin-bottom:10px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="status">
+    <h1>MISTRAL</h1>
+    <span id="state" class="pill no-data">NO DATA</span>
+    <span id="link" class="meta down">CONNECTING</span>
+    <span id="uptime" class="meta">--:--</span>
+  </div>
+  <button id="kill" class="kill" type="button">KILL</button>
+</header>
+<main>
+<section>
+  <h2>Arm</h2>
+  <div class="row">
+    <button id="arm" class="btn" type="button" disabled>ARM</button>
+    <button id="disarm" class="btn" type="button" disabled>DISARM</button>
+  </div>
+  <p id="armNote" class="note">Props off or vehicle restrained.</p>
+</section>
+<section>
+  <h2>Throttle</h2>
+  <div class="throttle">
+    <div class="slider-wrap">
+      <div id="thr" class="vslider" role="slider" tabindex="0" aria-label="Throttle" aria-orientation="vertical"
+           aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-disabled="true"><div class="fill"></div><div class="thumb"></div></div>
+    </div>
+    <div class="readouts">
+      <div class="ro"><div class="k">Slider</div><div class="v" id="thrPct">0%</div></div>
+      <div class="ro"><div class="k">Vehicle cmd</div><div class="v" id="thrVeh">--</div></div>
+      <div class="ro"><div class="k">ESC1 / ESC2 µs</div><div class="v" id="escUs">-- / --</div></div>
+      <button id="thrZero" class="btn" type="button" disabled>ZERO</button>
+      <label class="check"><input id="snap" type="checkbox"> Snap to zero on release</label>
+    </div>
+  </div>
+  <p id="thrNote" class="note">Arm to enable.</p>
+</section>
+<section>
+  <h2>Nozzle</h2>
+  <div class="grid2">
+    <div class="ro"><div class="k">X · pitch</div><div class="v" id="nozX">--</div><div class="meta" id="nozXus">-- µs</div></div>
+    <div class="ro"><div class="k">Y · roll</div><div class="v" id="nozY">--</div><div class="meta" id="nozYus">-- µs</div></div>
+  </div>
+</section>
+<section><h2>Console</h2><pre id="log"></pre></section>
+<section><details id="raw"><summary>Raw telemetry</summary><pre id="telemetry">waiting for first frame</pre></details></section>
+</main>
+<script>
+'use strict';
+
+// ── Transport ────────────────────────────────────────────────────────────────
+// Served by the vehicle: same host. Opened from disk: the vehicle's AP address.
+const HOST           = location.protocol === 'file:' ? '192.168.4.1' : location.host;
+const WS_URL         = 'ws://' + HOST + '/ws';  // path must match cfg::WIFI_WS_PATH
+const RECONNECT_MS   = 1000;
+const STALE_MS       = 1000;  // no telemetry for this long → STALE
+const ACK_TIMEOUT_MS = 2000;
+const LEVEL_MS       = 60;    // a dragged slider sends its newest value at most this often
+const PING_MS        = 250;   // heartbeat; the vehicle disarms after cfg::LINK_TIMEOUT_MS without one
+const ARM_CONFIRM_MS = 3000;  // the second ARM tap must land within this
+const LOG_LINES      = 200;
+
+let ws = null, wasOpen = false, nextId = 1, lastFrameMs = 0, lastUptimeMs = null;
+const pending = new Map();  // command id → {type, resolve, sentMs}
+const levels  = new Map();  // command type → {fields, timer}, see sendLevel()
+
+// The vehicle drops the held throttle to 0 when it receives any of these (wifi_link).
+const ZEROES_THROTTLE = new Set(['arm', 'disarm', 'kill']);
+
+const $ = id => document.getElementById(id);
+function set(id, text) { $(id).textContent = text; }
+
+function log(msg) {
+  const el = $('log');
+  const lines = (el.textContent + new Date().toLocaleTimeString() + '  ' + msg + '\n').split('\n');
+  el.textContent = lines.slice(-LOG_LINES - 1).join('\n');
+  el.scrollTop = el.scrollHeight;
+}
+
+function setLink(cls, text) {
+  const el = $('link');
+  el.className = 'meta ' + cls;
+  el.textContent = text;
+}
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => { wasOpen = true; setLink('ok', 'LINK'); log('connected ' + WS_URL); };
+  ws.onclose = () => {
+    if (wasOpen) log('link lost');
+    wasOpen = false;
+    setLink('down', 'NO LINK');
+    failPending('link lost');
+    linkDown();
+    setTimeout(connect, RECONNECT_MS);
+  };
+  ws.onmessage = ev => {
+    let m;
+    try { m = JSON.parse(ev.data); } catch (e) { log('malformed frame'); return; }
+    (HANDLERS[m.type] || unhandled)(m);
+  };
+}
+
+// Send a command. Every command carries an id and the vehicle answers with an ack, so a
+// failed command is shown rather than silently dropped. Resolves to {ok, error}.
+function send(type, fields) {
+  // A throttle value still waiting in sendLevel() must not land after a command that
+  // zeroes throttle. One already on the socket is fine: frames arrive in order, so the
+  // vehicle zeroes it.
+  if (ZEROES_THROTTLE.has(type)) cancelLevel('throttle');
+  return new Promise(resolve => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      log(type + ' not sent: no link');
+      resolve({ok: false, error: 'no link'});
+      return;
+    }
+    const id = nextId++;
+    pending.set(id, {type, resolve, sentMs: Date.now()});
+    ws.send(JSON.stringify(Object.assign({type, id}, fields)));
+  });
+}
+
+function failPending(why) {
+  pending.forEach(p => p.resolve({ok: false, error: why}));
+  pending.clear();
+}
+
+// ── Level commands (sliders) ─────────────────────────────────────────────────
+// A dragged slider fires input events far faster than the link needs. sendLevel() sends
+// the first value at once, then only the newest value per command type every LEVEL_MS
+// while it keeps changing, and always finishes on the final value.
+function sendLevel(type, fields) {
+  const l = levels.get(type);
+  if (l) { l.fields = fields; return; }  // a send is scheduled; it will carry this value
+  send(type, fields);
+  const entry = {fields: null, timer: null};
+  entry.timer = setInterval(() => {
+    if (entry.fields === null) { cancelLevel(type); return; }
+    send(type, entry.fields);
+    entry.fields = null;
+  }, LEVEL_MS);
+  levels.set(type, entry);
+}
+
+function cancelLevel(type) {
+  const l = levels.get(type);
+  if (l) { clearInterval(l.timer); levels.delete(type); }
+}
+
+// ── Remembered settings ──────────────────────────────────────────────────────
+// Live-tuned settings survive page reloads and vehicle reboots: saved in this browser,
+// and re-sent on the first telemetry frame after the page loads and whenever the vehicle
+// reboots (its uptime goes backwards), because the vehicle boots on compiled defaults.
+//
+// Only keys listed in PERSIST are ever saved. The board is the source of truth for
+// everything else. NEVER add:
+//   - throttle or arm state: restoring them could spin a motor when a page opens.
+//   - servo trims, signs, axis mappings: hardware facts that belong in mistral_config.h.
+//     A trim is copied into the config centre; a remembered trim re-sent after that
+//     reflash would apply the offset twice.
+// Map: storage key → command type it is re-sent as. Empty until the firmware accepts
+// live gains, e.g.  gainsPitch: 'gains'
+const PERSIST   = {};
+const PREFS_KEY = 'mistralPrefs';
+
+let prefs = {};
+try { prefs = JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch (e) { prefs = {}; }
+
+// Panels call this after sending a setting the user changed.
+function remember(key, fields) {
+  if (!(key in PERSIST)) return;
+  prefs[key] = fields;
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {}
+}
+
+function restorePrefs() {
+  let n = 0;
+  for (const key in PERSIST) {
+    if (prefs[key]) { send(PERSIST[key], prefs[key]); n++; }
+  }
+  if (n) log('re-sent ' + n + ' remembered setting' + (n === 1 ? '' : 's'));
+}
+
+// Page-only preferences: this browser, never sent to the vehicle.
+const UI_KEY = 'mistralUi';
+const ui = {snap: true};
+try { Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY))); } catch (e) {}
+function saveUi() { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch (e) {} }
+
+// ── Vehicle state ────────────────────────────────────────────────────────────
+let vehicleState = null;   // DISARMED | ARMING | ARMED, from telemetry
+let killed       = false;  // KILL sent — shown as KILLED until the next arm
+let expectDisarm = false;  // the page asked for this disarm; don't report it as unexpected
+
+function showState() {
+  const s = vehicleState === null ? 'NO DATA' : (killed && vehicleState === 'DISARMED' ? 'KILLED' : vehicleState);
+  const el = $('state');
+  el.textContent = s;
+  el.className = 'pill ' + s.toLowerCase().replace(' ', '-');
+}
+
+function onVehicleState(t) {
+  const s = t.throttle.state;
+  if ((vehicleState === 'ARMED' || vehicleState === 'ARMING') && s === 'DISARMED' && !expectDisarm) {
+    log('vehicle disarmed itself (auto-cut or link loss)');
+  }
+  if (s === 'DISARMED') expectDisarm = false;
+  vehicleState = s;
+
+  setThrottleEnabled(s === 'ARMED', Math.round(t.throttle.normalised * 100));
+  $('arm').disabled = s !== 'DISARMED';
+  $('disarm').disabled = s === 'DISARMED';
+  if (s !== 'DISARMED' && armConfirmTimer) setArmConfirm(false);
+  set('armNote', s === 'ARMING' ? 'Arming — ESCs held at minimum, ' + Math.ceil(t.throttle.armRemainingMs / 1000) + ' s'
+               : s === 'ARMED'  ? 'ARMED — throttle is live.'
+               :                  'Props off or vehicle restrained.');
+  showState();
+}
+
+// Link gone or stale: lock the controls that need a live vehicle. The vehicle disarms
+// itself on link loss.
+function linkDown() {
+  setThrottleEnabled(false, 0);
+  $('arm').disabled = true;
+  if (armConfirmTimer) setArmConfirm(false);
+}
+
+// ── Throttle slider ──────────────────────────────────────────────────────────
+// Custom vertical slider. Dragging is RELATIVE to where the finger lands, so a tap near
+// the top can never jump straight to high throttle. Enabled only while ARMED.
+const thr = {el: $('thr'), pct: 0, enabled: false, drag: null};
+
+function renderThrottle() {
+  thr.el.querySelector('.fill').style.height = thr.pct + '%';
+  thr.el.querySelector('.thumb').style.bottom = thr.pct + '%';
+  thr.el.setAttribute('aria-valuenow', String(thr.pct));
+  set('thrPct', thr.pct + '%');
+}
+
+// The user moved the slider: show it and send it, coalesced.
+function setThrottle(pct) {
+  if (!thr.enabled) return;
+  pct = Math.max(0, Math.min(100, Math.round(pct)));
+  if (pct === thr.pct) return;
+  thr.pct = pct;
+  renderThrottle();
+  sendLevel('throttle', {value: pct / 100});
+}
+
+// Local reset only: the vehicle already zeroes throttle on arm, disarm, kill and link loss.
+function zeroThrottleUi() {
+  thr.drag = null;
+  thr.pct = 0;
+  renderThrottle();
+}
+
+// On enable, adopt the vehicle's own value so the slider never disagrees with it.
+function setThrottleEnabled(on, vehiclePct) {
+  if (on === thr.enabled) return;
+  thr.enabled = on;
+  thr.el.setAttribute('aria-disabled', String(!on));
+  $('thrZero').disabled = !on;
+  if (on) { thr.drag = null; thr.pct = vehiclePct; renderThrottle(); } else zeroThrottleUi();
+  set('thrNote', on ? 'Drag up to add throttle.' : 'Arm to enable.');
+}
+
+thr.el.addEventListener('pointerdown', e => {
+  if (!thr.enabled) return;
+  e.preventDefault();
+  thr.el.setPointerCapture(e.pointerId);
+  thr.drag = {id: e.pointerId, y: e.clientY, pct: thr.pct};
+});
+thr.el.addEventListener('pointermove', e => {
+  if (!thr.drag || e.pointerId !== thr.drag.id) return;
+  const h = thr.el.getBoundingClientRect().height;
+  setThrottle(thr.drag.pct + (thr.drag.y - e.clientY) / h * 100);
+});
+function endDrag(e) {
+  if (!thr.drag || e.pointerId !== thr.drag.id) return;
+  thr.drag = null;
+  if (ui.snap) setThrottle(0);
+}
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => thr.el.addEventListener(ev, endDrag));
+thr.el.addEventListener('keydown', e => {
+  const step = {ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1, PageUp: 10, PageDown: -10, Home: -100}[e.key];
+  if (step === undefined || !thr.enabled) return;
+  e.preventDefault();
+  setThrottle(thr.pct + step);
+});
+$('thrZero').onclick = () => setThrottle(0);
+$('snap').checked = ui.snap;
+$('snap').onchange = () => { ui.snap = $('snap').checked; saveUi(); };
+
+// ── Arm / disarm / kill ──────────────────────────────────────────────────────
+let armConfirmTimer = null;
+
+function setArmConfirm(on) {
+  clearTimeout(armConfirmTimer);
+  armConfirmTimer = on ? setTimeout(() => setArmConfirm(false), ARM_CONFIRM_MS) : null;
+  $('arm').classList.toggle('confirm', on);
+  set('arm', on ? 'TAP AGAIN TO ARM' : 'ARM');
+}
+
+$('arm').onclick = () => {
+  if (!armConfirmTimer) { setArmConfirm(true); return; }
+  setArmConfirm(false);
+  killed = false;
+  zeroThrottleUi();
+  send('arm');
+};
+$('disarm').onclick = () => {
+  expectDisarm = true;
+  zeroThrottleUi();
+  send('disarm');
+};
+$('kill').onclick = () => {
+  killed = true;
+  expectDisarm = true;
+  if (armConfirmTimer) setArmConfirm(false);
+  zeroThrottleUi();
+  send('kill');
+  showState();
+  log('KILL');
+};
+
+// Hidden page (app switch, locked phone): disarm now rather than waiting for the link
+// timeout. Pings also stop while hidden, so the vehicle disarms even if this is lost.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && vehicleState && vehicleState !== 'DISARMED') {
+    expectDisarm = true;
+    zeroThrottleUi();
+    send('disarm');
+    log('page hidden — disarmed');
+  }
+});
+
+// ── Readouts ─────────────────────────────────────────────────────────────────
+function fmtUptime(ms) {
+  const s = Math.floor(ms / 1000);
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+function showNozzle(axis, deg, us, sat) {
+  set('noz' + axis, (deg >= 0 ? '+' : '') + deg.toFixed(1) + '°');
+  set('noz' + axis + 'us', us + ' µs' + (sat ? '  SAT' : ''));
+  $('noz' + axis + 'us').classList.toggle('sat', sat);
+}
+
+// ── Routing — one handler per frame type ─────────────────────────────────────
+const HANDLERS = {
+  telemetry(m) {
+    lastFrameMs = Date.now();
+    if (lastUptimeMs === null || m.uptimeMs < lastUptimeMs) restorePrefs();
+    lastUptimeMs = m.uptimeMs;
+    onVehicleState(m);
+    set('uptime', fmtUptime(m.uptimeMs));
+    set('thrVeh', Math.round(m.throttle.normalised * 100) + '%');
+    set('escUs', m.throttle.esc1Us + ' / ' + m.throttle.esc2Us);
+    showNozzle('X', m.tvc.xDeg, m.tvc.xUs, m.tvc.xSaturated);
+    showNozzle('Y', m.tvc.yDeg, m.tvc.yUs, m.tvc.ySaturated);
+    if ($('raw').open) set('telemetry', JSON.stringify(m, null, 1));
+  },
+  ack(m) {
+    const p = pending.get(m.id);
+    if (!p) { if (!m.ok) log('rejected: ' + m.error); return; }
+    pending.delete(m.id);
+    if (!m.ok) log(p.type + ' failed: ' + m.error);
+    p.resolve(m);
+  },
+};
+
+function unhandled(m) { log('unhandled frame type: ' + m.type); }
+
+setInterval(() => {
+  const now = Date.now();
+  pending.forEach((p, id) => {
+    if (now - p.sentMs > ACK_TIMEOUT_MS) {
+      pending.delete(id);
+      log(p.type + ' timed out');
+      p.resolve({ok: false, error: 'timeout'});
+    }
+  });
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    if (!document.hidden) ws.send('{"type":"ping"}');
+    const stale = now - lastFrameMs > STALE_MS;
+    setLink(stale ? 'stale' : 'ok', stale ? 'STALE' : 'LINK');
+    if (stale) linkDown();
+  }
+}, PING_MS);
+
+// Bench testing from the browser console, e.g.  mistral.send('trim', {axis: 'x', us: 10})
+window.mistral = {send, sendLevel, remember};
+renderThrottle();
+connect();
+</script>
+</body>
+</html>

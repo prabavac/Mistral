@@ -24,11 +24,11 @@ struct Setpoint {
     float yawRate_dps;  // yaw is rate only — no heading setpoint
 };
 
-// Actuator demand, in the units lib/tvc and lib/motors accept.
+// Actuator demand, in the units lib/tvc and lib/throttle accept.
 struct Command {
     float tvcX_deg;
     float tvcY_deg;
-    float differential;  // yaw — passed to motors::setThrust()
+    float differential;  // yaw — passed to throttle::setDifferential()
 };
 
 // Zero the integral states. Called on entry to DISARMED.

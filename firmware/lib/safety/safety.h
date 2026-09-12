@@ -1,7 +1,7 @@
 // safety.h — arming gates and saturation flags — Mistral
 //
 // The actuator clamps themselves live where the pulses are generated (lib/tvc,
-// lib/motors). This module gathers their saturation flags and owns the arming
+// lib/throttle). This module gathers their saturation flags and owns the arming
 // gates.
 //
 // Saturation flags propagate BACK UP the control chain: when an actuator clamps,
@@ -10,7 +10,7 @@
 // control/lqr now, and any future velocity/position loops.
 #pragma once
 
-#include <motors.h>
+#include <throttle.h>
 #include <tvc.h>
 
 namespace safety {
@@ -22,7 +22,7 @@ struct Saturation {
 };
 
 // Collect this tick's actuator saturation flags.
-Saturation saturation(const tvc::Status& t, const motors::Status& m);
+Saturation saturation(const tvc::Status& t, const throttle::Status& m);
 
 // Initial gate set — extended when the state machine is implemented.
 struct ArmInputs {

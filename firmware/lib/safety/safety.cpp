@@ -1,6 +1,6 @@
 #include "safety.h"
 
-safety::Saturation safety::saturation(const tvc::Status& t, const motors::Status& m) {
+safety::Saturation safety::saturation(const tvc::Status& t, const throttle::Status& m) {
     return {t.x_saturated, t.y_saturated, m.saturated};
 }
 

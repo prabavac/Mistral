@@ -20,7 +20,7 @@ pio device monitor       # 115200; DTR/RTS held off so connecting doesn't reset 
 ## Code rules
 - **All hardware constants live in `firmware/include/mistral_config.h`.** Nothing magic in module logic.
 - One subsystem = one library under `firmware/lib/`. `main.cpp` only wires modules in `setup()`/`loop()`.
-- Conventional Commits: `type(scope): summary`, scope = module name (`tvc`, `motors`, `mtf01`, …).
+- Conventional Commits: `type(scope): summary`, scope = module name (`tvc`, `throttle`, `mtf01`, …).
 
 ## LEDC — do not regress (each of these failed on Zephyr)
 - Native LEDC only: `ledcAttachChannel(pin, 50, 14, ch)`, EXPLICIT channel, called ONCE in the module's `init()`.

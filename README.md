@@ -8,10 +8,11 @@ to Zephyr; the mechanical and control approach follows
 [fdiwth/tvc-drone](https://github.com/fdiwth/tvc-drone) (architecture only — no
 code is borrowed).
 
-> **Status: scaffold.** The repository layout, build system and module
-> interfaces are in place. Every module is a stub; sensor drivers, estimation,
-> control and the main loop are written one module at a time against real
-> hardware.
+> **Status: bring-up.** The actuators (`tvc`, `throttle`) and the WiFi ground
+> link (`wifi_link`) are implemented. On boot the gimbal runs a diagonal bench
+> sweep (`cfg::BENCH_SERVO_SWEEP`) and the throttle is driven from the ground
+> station page. Sensor drivers, estimation, control and the state machine are
+> still stubs, written one module at a time against real hardware.
 
 The full vehicle spec is [`PROJECT-CONTEXT.md`](PROJECT-CONTEXT.md).
 
@@ -43,9 +44,10 @@ mistral/
 │   ├── include/            mistral_config.h — every pin, limit and gain
 │   ├── src/                main.cpp — wiring only
 │   └── lib/                sensors (icm42688, bmp388, mtf01), fusion (attitude,
-│                           translation), control (lqr), tvc, motors,
-│                           display, state_machine, safety
-└── docs/                   wiring diagram, flight logs
+│                           translation), control (lqr), tvc, throttle,
+│                           display, state_machine, safety, wifi_link, bench
+├── web/                    index.html — ground-station page, embedded into the firmware
+└── docs/                   wiring diagram, actuators & comms, flight logs
 ```
 
 ## Build & flash
@@ -59,11 +61,28 @@ pio run -t upload        # flash over USB
 pio device monitor       # serial monitor, 115200
 ```
 
+## Ground station page
+
+The vehicle hosts its own WiFi access point and serves the ground-station page:
+
+1. Join the AP **`mistral-xxxx`** — the last four hex digits of the MAC, printed on
+   serial at boot. The password is `cfg::WIFI_PASSWORD`.
+2. Open **http://192.168.4.1**.
+
+The page source is [`web/index.html`](web/index.html). The build embeds it into the
+firmware, so edit that file and reflash — there is no second copy to keep in sync.
+While joined to the AP you can also open the file straight from disk; it connects to
+192.168.4.1. It has the status bar, KILL, two-tap arm/disarm, the throttle slider and a
+nozzle readout; the remaining panels are specified in
+[`docs/actuators-comms.md`](docs/actuators-comms.md) §4.
+
 ## Safety
 
 - Verify every TVC servo sign on the test stand before any free flight.
 - Bench-test motors with props off or the vehicle restrained.
 - Throttle is software-gated behind arming; both ESCs sit at minimum otherwise.
+- Losing the ground link for 1 s disarms. So does KILL, and hiding the page
+  (switching apps or locking the phone).
 
 ## License
 
