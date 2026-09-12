@@ -172,7 +172,7 @@ constexpr uint32_t LINK_TIMEOUT_MS = 1000;
 // Bring-up only. While true, loop() sweeps the gimbal diagonally: both axes to
 // +TVC_CLAMP_DEG, hold, then both to −TVC_CLAMP_DEG, hold. Set false once a controller
 // drives the servos.
-constexpr bool     BENCH_SERVO_SWEEP    = true;
+constexpr bool     BENCH_SERVO_SWEEP    = false;  // off: servos held at centre (tvc::init)
 constexpr uint32_t BENCH_SWEEP_DWELL_MS = 1500;  // hold at each end
 
 }  // namespace cfg

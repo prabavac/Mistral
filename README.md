@@ -9,9 +9,9 @@ to Zephyr; the mechanical and control approach follows
 code is borrowed).
 
 > **Status: bring-up.** The actuators (`tvc`, `throttle`) and the WiFi ground
-> link (`wifi_link`) are implemented. On boot the gimbal runs a diagonal bench
-> sweep (`cfg::BENCH_SERVO_SWEEP`) and the throttle is driven from the ground
-> station page. Sensor drivers, estimation, control and the state machine are
+> link (`wifi_link`) are implemented. The gimbal holds at centre (a diagonal
+> bench sweep is available via `cfg::BENCH_SERVO_SWEEP`) and the throttle is
+> driven from the ground station page. Sensor drivers, estimation, control and the state machine are
 > still stubs, written one module at a time against real hardware.
 
 The full vehicle spec is [`PROJECT-CONTEXT.md`](PROJECT-CONTEXT.md).
