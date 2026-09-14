@@ -16,15 +16,15 @@
 namespace safety {
 
 struct Saturation {
-    bool tvcX;    // servo X hit TVC_CLAMP_DEG or its µs backstop
-    bool tvcY;    // servo Y hit TVC_CLAMP_DEG or its µs backstop
+    bool tvcX;    // servo X hit TVC_CLAMP_RAD or its µs backstop
+    bool tvcY;    // servo Y hit TVC_CLAMP_RAD or its µs backstop
     bool thrust;  // a motor command was clipped to the ESC range
 };
 
 // Collect this tick's actuator saturation flags.
 Saturation saturation(const tvc::Status& t, const throttle::Status& m);
 
-// Initial gate set — extended when the state machine is implemented.
+// Gates for DISARMED → ARMED.
 struct ArmInputs {
     bool  imuValid;
     bool  attitudeValid;

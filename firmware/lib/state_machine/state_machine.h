@@ -1,36 +1,45 @@
 // state_machine.h — flight state — Mistral
 //
-//   DISARMED → ARMED → FLYING → LANDED
-//   any state → KILL
+//   DISARMED ⇄ ARMED ⇄ FLYING          DISARM, KILL, link loss: any state → DISARMED
 //
-// DISARMED: both ESCs held at ESC_MIN_US, control loops BYPASSED, and every
-//           controller integrator held at zero, so nothing winds up while the
-//           vehicle sits on the ground.
-// ARMED:    reached only through safety::armingAllowed() and throttle::arm().
-// KILL:     both ESCs forced to ESC_MIN_US immediately.
+// DISARMED: controller bypassed, integrals zero, servos centred, ESCs at minimum.
+// ARMED:    PD live on the servos (the LQI with its integrals forced to zero), ESCs at
+//           minimum. Reached from DISARMED only when the arming gates pass
+//           (safety::armingAllowed), or from FLYING to stop the motors. This is the state
+//           for hand-tilt sign checks.
+// FLYING:   ESCs armed through throttle::arm()'s hold, throttle live. Integrals accumulate
+//           only at or above cfg::LQR_INTEGRATE_MIN_THROTTLE: below it the vehicle is on the
+//           pad, the loop is open, and they would wind up before lift-off. If the ESCs drop
+//           out on their own (auto-cut, or the arm was refused), falls back to ARMED.
 #pragma once
 
 #include <cstdint>
 
+#include <safety.h>
+
 namespace state_machine {
 
-enum class State : uint8_t { DISARMED, ARMED, FLYING, LANDED, KILL };
+enum class State : uint8_t { DISARMED, ARMED, FLYING };
 
 // Enter DISARMED. Call once in setup(), after throttle::init().
 void init();
 
-// Advance transitions. Call once per control tick.
+// ARM: DISARMED → ARMED if the gates pass; FLYING → ARMED (motors off). False if refused.
+bool requestArm(const safety::ArmInputs& in);
+
+// FLY: ARMED → FLYING, starting the ESC arming hold. False unless ARMED and the ESCs accepted.
+bool requestFly();
+
+// DISARM, KILL, link loss: → DISARMED, ESCs to minimum immediately. Safe to call any time.
+void disarm();
+
+// Follow the ESCs out of FLYING. Call once per control tick, after throttle::update().
 void update();
 
-State state();
+State       state();
+const char* name(State s);
 
-// False in DISARMED and KILL: attitude controllers must not run, and their
-// integrators stay at zero.
-bool controlActive();
-
-// Returns false if an arming gate refuses.
-bool requestArm();
-void requestDisarm();
-void kill();
+bool controlActive();  // ARMED or FLYING
+bool integrating();    // FLYING, ESCs armed, throttle ≥ cfg::LQR_INTEGRATE_MIN_THROTTLE
 
 }  // namespace state_machine

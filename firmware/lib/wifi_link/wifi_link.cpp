@@ -73,6 +73,8 @@ void handleCommand(const uint8_t* data, size_t len) {
         setEvent(commands.kill, commands.killId, id);
     } else if (strcmp(type, "arm") == 0) {
         setEvent(commands.arm, commands.armId, id);
+    } else if (strcmp(type, "fly") == 0) {
+        setEvent(commands.fly, commands.flyId, id);
     } else if (strcmp(type, "disarm") == 0) {
         setEvent(commands.disarm, commands.disarmId, id);
     } else if (strcmp(type, "throttle") == 0) {
@@ -123,7 +125,7 @@ const char* stateName(throttle::State s) {
 }
 
 void sendJson(const JsonDocument& doc) {
-    char         buf[512];
+    char         buf[768];
     const size_t n = serializeJson(doc, buf, sizeof buf);
     ws.textAll(buf, n);
 }
@@ -134,8 +136,10 @@ void sendTelemetry() {
     portEXIT_CRITICAL(&lock);
 
     JsonDocument doc;
-    doc["type"]     = "telemetry";
-    doc["uptimeMs"] = t.uptimeMs;
+    constexpr float R2D = 57.29578f;
+    doc["type"]         = "telemetry";
+    doc["uptimeMs"]     = t.uptimeMs;
+    doc["state"]        = state_machine::name(t.flight);
 
     JsonObject esc        = doc["throttle"].to<JsonObject>();
     esc["state"]          = stateName(t.esc.state);
@@ -147,14 +151,32 @@ void sendTelemetry() {
     esc["saturated"]      = t.esc.saturated;
 
     JsonObject nozzle    = doc["tvc"].to<JsonObject>();
-    nozzle["xDeg"]       = t.nozzle.x_deg;
-    nozzle["yDeg"]       = t.nozzle.y_deg;
+    nozzle["xDeg"]       = t.nozzle.x_rad * R2D;
+    nozzle["yDeg"]       = t.nozzle.y_rad * R2D;
     nozzle["xUs"]        = t.nozzle.x_us;
     nozzle["yUs"]        = t.nozzle.y_us;
     nozzle["xTrimUs"]    = t.nozzle.x_trim_us;
     nozzle["yTrimUs"]    = t.nozzle.y_trim_us;
     nozzle["xSaturated"] = t.nozzle.x_saturated;
     nozzle["ySaturated"] = t.nozzle.y_saturated;
+
+    JsonObject att      = doc["att"].to<JsonObject>();
+    att["cf1Deg"]       = t.att.comp.r1 * R2D;
+    att["cf2Deg"]       = t.att.comp.r2 * R2D;
+    att["fu1Deg"]       = t.att.fusion.r1 * R2D;
+    att["fu2Deg"]       = t.att.fusion.r2 * R2D;
+    att["dr1Dps"]       = t.att.dr1 * R2D;
+    att["dr2Dps"]       = t.att.dr2 * R2D;
+    att["yawRateDps"]   = t.att.yawRate * R2D;
+    att["fusion"]       = cfg::ATTITUDE_USE_FUSION;
+    att["valid"]        = t.att.valid;
+
+    JsonObject ctl = doc["ctl"].to<JsonObject>();
+    ctl["u1Deg"]   = t.ctl.u1 * R2D;
+    ctl["u2Deg"]   = t.ctl.u2 * R2D;
+    ctl["ir1"]     = t.ctl.ir1;
+    ctl["ir2"]         = t.ctl.ir2;
+    ctl["integrating"] = t.integrating;
 
     sendJson(doc);
 }
@@ -220,7 +242,7 @@ wifi_link::Commands wifi_link::takeCommands() {
     // lastRxMs newer than `now` and wrap the age.
     const uint32_t now = millis();
     c.linkAlive        = haveRx && now - lastRxMs < cfg::LINK_TIMEOUT_MS;
-    commands.kill = commands.arm = commands.disarm = false;
+    commands.kill = commands.arm = commands.fly = commands.disarm = false;
     portEXIT_CRITICAL(&lock);
     return c;
 }

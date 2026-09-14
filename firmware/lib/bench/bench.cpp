@@ -4,7 +4,8 @@
 #include <tvc.h>
 
 void bench::servoSweep(uint32_t nowMs) {
-    const bool  positive = (nowMs / cfg::BENCH_SWEEP_DWELL_MS) % 2 == 0;
-    const float deg      = positive ? cfg::TVC_CLAMP_DEG : -cfg::TVC_CLAMP_DEG;
-    tvc::setDeflection(deg, deg);
+    constexpr float        L         = cfg::TVC_CLAMP_RAD;
+    static constexpr float STEPS[4][2] = {{L, 0.0f}, {-L, 0.0f}, {0.0f, L}, {0.0f, -L}};
+    const auto&            step      = STEPS[(nowMs / cfg::BENCH_SWEEP_DWELL_MS) % 4];
+    tvc::setDeflection(step[0], step[1]);
 }

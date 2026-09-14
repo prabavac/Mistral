@@ -30,7 +30,7 @@ pio device monitor       # 115200; DTR/RTS held off so connecting doesn't reset 
 - Servos write on change only — re-issuing the same pulse makes the MG90S buzz.
 
 ## Safety invariants
-- TVC clamp (`TVC_CLAMP_DEG`) enforced in `lib/tvc` for EVERY servo, with a per-servo µs backstop behind it.
+- TVC clamp (`TVC_CLAMP_RAD`, nozzle radians) enforced in `lib/tvc` for EVERY servo, with a per-servo µs backstop behind it.
 - Throttle software-gated behind arming: both ESCs forced to `ESC_MIN_US` unless armed.
 - The two ESC channels stay separate — never Y-split, no shared "write all PWM" loop.
 - Saturation flags propagate back up the control chain to freeze upstream integrators.

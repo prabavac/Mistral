@@ -20,7 +20,8 @@
 //   client → vehicle (every command except ping carries a numeric "id"):
 //     {"type":"ping"}                              heartbeat — no ack
 //     {"type":"kill","id":1}
-//     {"type":"arm","id":2}
+//     {"type":"arm","id":2}                        DISARMED→ARMED (servos), FLYING→ARMED (motors off)
+//     {"type":"fly","id":6}                        ARMED→FLYING (ESC arm hold, then throttle)
 //     {"type":"disarm","id":3}
 //     {"type":"throttle","id":4,"value":0.35}      0..1
 //     {"type":"trim","id":5,"axis":"x","us":12}    absolute trim, µs
@@ -28,20 +29,28 @@
 //   vehicle → client:
 //     {"type":"ack","id":2,"ok":true}
 //     {"type":"ack","id":2,"ok":false,"error":"throttle not zero"}
-//         kill/arm/disarm are acked by the control loop once applied, with the result.
+//         kill/arm/fly/disarm are acked by the control loop once applied, with the result.
 //         They also reset the held throttle to 0 on receipt.
 //         throttle/trim are acked on receipt (applied next tick). Malformed or unknown
 //         commands are rejected on receipt.
-//     {"type":"telemetry","uptimeMs":..,
+//     {"type":"telemetry","uptimeMs":..,"state":"DISARMED|ARMED|FLYING",
 //      "throttle":{"state":"DISARMED|ARMING|ARMED","armRemainingMs":..,"normalised":..,
 //                  "differential":..,"esc1Us":..,"esc2Us":..,"saturated":..},
 //      "tvc":{"xDeg":..,"yDeg":..,"xUs":..,"yUs":..,"xTrimUs":..,"yTrimUs":..,
-//             "xSaturated":..,"ySaturated":..}}
+//             "xSaturated":..,"ySaturated":..},
+//      "att":{"cf1Deg":..,"cf2Deg":..,"fu1Deg":..,"fu2Deg":..,"dr1Dps":..,"dr2Dps":..,
+//             "yawRateDps":..,"fusion":true|false,"valid":..},
+//      "ctl":{"u1Deg":..,"u2Deg":..,"ir1":..,"ir2":..,"integrating":..}}      ir in rad·s
+//         att: r1/r2 from both estimators (display units — the controller is radians);
+//         "fusion" says which one drives the controller.
 //         pushed to every client at cfg::TELEMETRY_HZ.
 #pragma once
 
 #include <cstdint>
 
+#include <attitude.h>
+#include <lqr.h>
+#include <state_machine.h>
 #include <throttle.h>
 #include <tvc.h>
 
@@ -49,8 +58,8 @@ namespace wifi_link {
 
 struct Commands {
     // Events: set by a received command, cleared by takeCommands().
-    bool     kill, arm, disarm;
-    uint32_t killId, armId, disarmId;  // echoed back in the ack
+    bool     kill, arm, fly, disarm;
+    uint32_t killId, armId, flyId, disarmId;  // echoed back in the ack
     // Levels: the latest received value, held between takes.
     float   throttle;  // 0..1 — reset to 0 by kill, arm and disarm
     int16_t trimXUs, trimYUs;
@@ -59,9 +68,13 @@ struct Commands {
 };
 
 struct Telemetry {
-    uint32_t         uptimeMs;
-    throttle::Status esc;
-    tvc::Status      nozzle;
+    uint32_t           uptimeMs;
+    throttle::Status   esc;
+    tvc::Status        nozzle;
+    attitude::Estimate   att;
+    state_machine::State flight;
+    lqr::Output          ctl;
+    bool                 integrating;  // integrators live this tick
 };
 
 // Start the SoftAP, HTTP server, WebSocket and the publisher task. Returns false if the

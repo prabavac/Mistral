@@ -8,11 +8,12 @@ to Zephyr; the mechanical and control approach follows
 [fdiwth/tvc-drone](https://github.com/fdiwth/tvc-drone) (architecture only — no
 code is borrowed).
 
-> **Status: bring-up.** The actuators (`tvc`, `throttle`) and the WiFi ground
-> link (`wifi_link`) are implemented. The gimbal holds at centre (a diagonal
-> bench sweep is available via `cfg::BENCH_SERVO_SWEEP`) and the throttle is
-> driven from the ground station page. Sensor drivers, estimation, control and the state machine are
-> still stubs, written one module at a time against real hardware.
+> **Status: bench bring-up, not flying.** IMU (`imu`), attitude estimation
+> (`attitude`: complementary filter + Fusion AHRS), the 6-state LQI (`lqr`), the
+> DISARMED / ARMED / FLYING state machine, the TVC mixer, throttle and the WiFi
+> ground station are implemented. Bench checks are listed in
+> [`bench/VERIFY.md`](bench/VERIFY.md). The barometer, optical flow, translation
+> estimate and OLED display are still stubs.
 
 The full vehicle spec is [`PROJECT-CONTEXT.md`](PROJECT-CONTEXT.md).
 
@@ -43,10 +44,12 @@ mistral/
 ├── firmware/
 │   ├── include/            mistral_config.h — every pin, limit and gain
 │   ├── src/                main.cpp — wiring only
-│   └── lib/                sensors (icm42688, bmp388, mtf01), fusion (attitude,
+│   └── lib/                sensors (imu, bmp388, mtf01), fusion (attitude,
 │                           translation), control (lqr), tvc, throttle,
-│                           display, state_machine, safety, wifi_link, bench
+│                           display, state_machine, safety, wifi_link, bench,
+│                           FusionAhrs (vendored xioTechnologies/Fusion v1.3.3)
 ├── web/                    index.html — ground-station page, embedded into the firmware
+├── bench/                  VERIFY.md — ordered bench verification checklist
 └── docs/                   wiring diagram, actuators & comms, flight logs
 ```
 

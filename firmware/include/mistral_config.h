@@ -21,14 +21,46 @@
 namespace cfg {
 
 // ─────────────────────────────── Serial ─────────────────────────────────────
-constexpr uint32_t SERIAL_BAUD = 115200;  // matches monitor_speed in platformio.ini
+constexpr uint32_t SERIAL_BAUD     = 115200;  // matches monitor_speed in platformio.ini
+constexpr uint32_t SERIAL_PRINT_MS = 200;     // bench diagnostics line
 
 // ─────────────────────────── I2C sensor bus ─────────────────────────────────
-constexpr uint8_t I2C_SDA = 41;
-constexpr uint8_t I2C_SCL = 42;
+// Sensors are on Wire1, NOT Wire. U8g2's HW_I2C owns Wire (the OLED, GPIO 17/18); sharing
+// one bus leaves the sensors addressed on the OLED's pins and the IMU's begin() returns -3.
+constexpr uint8_t  I2C_SDA      = 41;  // Wire1
+constexpr uint8_t  I2C_SCL      = 42;
+constexpr uint32_t I2C_CLOCK_HZ = 400000;
 
-constexpr uint8_t ICM42688_I2C_ADDR = 0x68;  // bring-up only; SPI preferred for flight
+constexpr uint8_t ICM42688_I2C_ADDR = 0x69;  // MEASURED — AD0 pulled high on this breakout
 constexpr uint8_t BMP388_I2C_ADDR   = 0x76;  // 0x77 if SDO is pulled high
+
+// ─────────────────────── IMU (ICM-42688-P, lib/sensors/imu) ──────────────────
+// From the bench sketch. Mounted rotated 90° about its X axis:
+// body X = sensor +X, body Y = sensor +Z, body Z = sensor −Y.
+constexpr uint16_t IMU_GYRO_RANGE_DPS = 500;   // Fusion's gyroscopeRange must match
+constexpr uint8_t  IMU_ACCEL_RANGE_G  = 8;
+constexpr uint32_t IMU_SETTLE_MS      = 1000;  // after configuring, before the bias average
+constexpr uint16_t IMU_BIAS_SAMPLES   = 400;   // boot average — vehicle upright and still
+constexpr uint8_t  IMU_BIAS_SAMPLE_MS = 3;
+
+// Filter the gyro at the SENSOR, never in software: a software LPF adds phase lag inside the
+// loop, which the reference identifies as the cause of instability. On-chip UI filter
+// (datasheet §5.5): BW index 0 → ODR/2; 1..7 → max(400 Hz, ODR) ÷ 4, 5, 8, 10, 16, 20, 40.
+// Order 0 / 1 / 2 = 1st / 2nd / 3rd. The chip resets to index 1 (≈250 Hz at 1 kHz), far above
+// the 100 Hz loop's 50 Hz Nyquist, so vibration aliases straight into the rate term.
+constexpr uint8_t IMU_GYRO_UI_FILT_BW  = 6;  // 1 kHz ÷ 20 = 50 Hz
+constexpr uint8_t IMU_ACCEL_UI_FILT_BW = 6;  // 50 Hz
+constexpr uint8_t IMU_UI_FILT_ORDER    = 1;  // 2nd order (the chip's reset order)
+
+// ───────────────────────── Attitude (lib/fusion/attitude) ─────────────────────
+// Both estimators always run so they can be compared; this picks the controller's input.
+// Fusion, since it matched the bench-verified complementary filter on hand tilts
+// (2026-09-13). false switches the controller back to the complementary filter.
+constexpr bool  ATTITUDE_USE_FUSION        = true;
+constexpr float COMP_FILTER_A              = 0.98f;  // bench sketch, ~0.49 s time constant
+constexpr float FUSION_GAIN                = 0.5f;
+constexpr float FUSION_ACCEL_REJECTION_DEG = 10.0f;
+constexpr float FUSION_REJECTION_TIMEOUT_S = 1.0f;
 
 // ─────────────────────── On-board OLED (SSD1306) ────────────────────────────
 constexpr uint8_t OLED_SDA  = 17;
@@ -86,25 +118,31 @@ constexpr uint32_t ESC_CAL_MIN_MS    = 4000;  // at MIN: low point, then self-de
 constexpr uint16_t CONTROL_LOOP_HZ = 100;
 
 // ──────────────────────────────── TVC ───────────────────────────────────────
-// Deflection clamp in TVC degrees — PRIMARY limit, enforced in lib/tvc for EVERY
-// servo. Clamping in degrees rather than µs gives both axes the same angular limit
-// even though their gear ratios differ. Bring-up value.
-constexpr float TVC_CLAMP_DEG = 10.0f;
+// Nozzle deflection clamp, in RADIANS — PRIMARY limit, enforced in lib/tvc for EVERY servo,
+// and the LQI's output limit. Clamping nozzle angle rather than µs gives both axes the same
+// angular limit even though their gear ratios differ. The bench sketch's U_LIMIT (8.59°).
+// Do NOT widen without the user's explicit say-so.
+constexpr float TVC_CLAMP_RAD = 0.15f;
 
-// Gear reduction: servo degrees per TVC degree. UNVERIFIED — inherited from the
-// reference. A ±500 µs sweep on this gimbal moves Y about a quarter less than X,
-// consistent with 3:1 vs 4:1, but that only confirms the ratio BETWEEN the axes.
-// Measure absolute deflection with a protractor before flight: this scales every
-// commanded correction.
+// Servo writes: at most one per 50 Hz PWM frame, and only when the target has moved at least
+// this far from the last pulse written — the MG90S's own dead band. Re-issuing an identical
+// pulse makes it buzz; sub-dead-band changes make it dither.
+constexpr float SERVO_DEADBAND_US = 5.0f;
+
+// Gear reduction: servo degrees per TVC degree. This build uses the reference's printed
+// gimbal, servos and motor unchanged. Its docs/en/Hardware.md states 3:1 (x) and 4:1 (y),
+// and its firmware's servo scales (LQR_SXSS 220.4 / LQR_SYSS 293.3 %/rad) are in the same
+// 4:3 proportion. A ±500 µs sweep here moves Y about a quarter less than X, consistent.
+// Confirmed by the owner 2026-09-13.
 constexpr float GEAR_RATIO_X = 3.0f;
 // GEAR_RATIO_Y is 4.0, NOT 3.0 — deliberate. Do not "fix" it to match X.
 // Servo-y's gear revolves around the TVC axis as the gimbal rotates, so the servo
 // needs one extra full rotation per 360° of TVC travel: 3 + 1 = 4.
 constexpr float GEAR_RATIO_Y = 4.0f;
 
-// Per-servo calibration. lib/tvc maps a clamped TVC angle to a pulse:
-//   us = centreUs + trim + tvcDeg · gearRatio · dir · usPerServoDeg
-// then clamps us to [minUs, maxUs] — the hard backstop behind TVC_CLAMP_DEG.
+// Per-servo calibration. lib/tvc maps a clamped nozzle angle to a pulse:
+//   us = centreUs + trim + deg(nozzle) · gearRatio · dir · usPerServoDeg
+// then clamps us to [minUs, maxUs] — the hard backstop behind TVC_CLAMP_RAD.
 struct ServoCal {
     uint16_t centreUs;       // pulse at 0° TVC
     float    usPerServoDeg;  // µs per degree at the servo horn, before gearing
@@ -126,12 +164,15 @@ constexpr uint16_t SERVO_SPAN_US     = 500;
 constexpr uint16_t SERVO_HARD_MIN_US = 1000;
 constexpr uint16_t SERVO_HARD_MAX_US = 2250;
 
-// usPerServoDeg 10.5 is UNVERIFIED until the protractor check. dir: VERIFY on the stand.
-// At the bring-up clamp X needs ±315 µs and Y ±420 µs — inside the ±500 backstops.
-constexpr ServoCal SERVO_X_CAL = {SERVO_X_CENTRE_US, 10.5f, GEAR_RATIO_X, +1,
+// usPerServoDeg 12.8, adopted 2026-09-13 from the reference (same MG90S and printed gimbal):
+// its LQR_SXSS 220.4 / LQR_SYSS 293.3 %/rad at 10 µs per % are 2204 / 2933 µs per nozzle
+// radian — 12.8 µs per servo degree through 3:1 and 4:1. Replaces an unmeasured 10.5.
+// dir: X +1, Y −1, both confirmed by hand-tilting with the bench sketch — re-verify on the
+// stand (bench/VERIFY.md). At the clamp X needs ±330 µs and Y ±440 µs — inside ±500.
+constexpr ServoCal SERVO_X_CAL = {SERVO_X_CENTRE_US, 12.8f, GEAR_RATIO_X, +1,
                                   SERVO_X_CENTRE_US - SERVO_SPAN_US,
                                   SERVO_X_CENTRE_US + SERVO_SPAN_US};
-constexpr ServoCal SERVO_Y_CAL = {SERVO_Y_CENTRE_US, 10.5f, GEAR_RATIO_Y, +1,
+constexpr ServoCal SERVO_Y_CAL = {SERVO_Y_CENTRE_US, 12.8f, GEAR_RATIO_Y, -1,
                                   SERVO_Y_CENTRE_US - SERVO_SPAN_US,
                                   SERVO_Y_CENTRE_US + SERVO_SPAN_US};
 
@@ -145,13 +186,42 @@ static_assert(SERVO_Y_CAL.minUs >= SERVO_HARD_MIN_US && SERVO_Y_CAL.maxUs <= SER
 //   y = α·y + (1 − α)·x
 constexpr float RANGE_LPF_ALPHA = 0.9f;  // UNTUNED
 
-// ─────────────────── Attitude LQR — UNTUNED PLACEHOLDERS ────────────────────
-// u = −K·x, with K computed offline from the vehicle model. All zero: not computed.
-//   x = [pitch, roll, pitchRate, rollRate, yawRate, ∫pitch, ∫roll, ∫yawRate]
-//   u = [tvcX_deg, tvcY_deg, differential]
-constexpr uint8_t LQR_STATES = 8;
-constexpr uint8_t LQR_INPUTS = 3;
-constexpr float   LQR_K[LQR_INPUTS][LQR_STATES] = {};  // UNTUNED
+// ──────────────────────── Attitude LQI (lib/control/lqr) ─────────────────────
+// Solved offline — do not recompute. mass 0.370 kg, arm 0.200 m, I_xx = I_yy = 0.01480 kg·m²
+// → B = thrust·arm/I = 49.05. Q = diag(130,130,4,4,10,10), R = 100·I, dt = 0.01.
+// Controllability rank 6/6, max closed-loop |pole| 0.9972.
+//   x = [r1, r2, dr1, dr2, ir1, ir2]   rad, rad/s, rad·s
+//   u = [nozzle X, nozzle Y]           rad
+// BOTH B entries are positive on purpose. The reference uses −B_rx/+B_ry, which encodes THEIR
+// gimbal handedness as opposite-polarity K rows. Ours keeps K symmetric and puts all mechanical
+// sign in ServoCal::dir, which is bench-verified. Do not "fix" this to match theirs.
+constexpr uint8_t LQR_STATES = 6;
+constexpr uint8_t LQR_INPUTS = 2;
+constexpr float   LQR_K[LQR_INPUTS][LQR_STATES] = {
+    {1.13552229f, 0.0f, 0.28421317f, 0.0f, 0.29383259f, 0.0f},
+    {0.0f, 1.13552229f, 0.0f, 0.28421317f, 0.0f, 0.29383259f},
+};
+
+// Global safety scale on u — the bench sketch's value. Do NOT raise above 0.3 without the
+// user's explicit say-so.
+constexpr float LQR_GAIN_SCALE = 0.3f;
+
+// Integral clamp, rad·s — the reference's RX_INTEGRAL_MAX. No leak: an earlier leak treated a
+// bench artifact (integrals winding while the loop is open) as a tuning problem.
+constexpr float LQR_I_LIMIT = 0.40f;
+
+// Integrators run only in FLYING with the commanded throttle at or above this. Below it the
+// vehicle is still on the pad and can't rotate, so the loop is open and they would wind up
+// before lift-off; they are held at zero instead. PLACEHOLDER (owner's call, 2026-09-13)
+// until thrust is measured: set it just under lift-off throttle.
+constexpr float LQR_INTEGRATE_MIN_THROTTLE = 0.50f;
+
+// Thrust gain scheduling: nozzle torque ∝ thrust, so u is scaled by NOMINAL / thrust, with a
+// floor so the division can't blow up. OFF — do not enable without the user's explicit
+// say-so, and never while thrust is zero. There is no throttle → newtons model yet.
+constexpr bool  THRUST_SCHED     = false;
+constexpr float NOMINAL_THRUST_N = 3.6297f;
+constexpr float THRUST_LCLAMP_N  = 0.2f * 9.81f;
 
 // ──────────────────── WiFi SoftAP + WebSocket (lib/wifi_link) ───────────────
 // The vehicle is the access point. SSID = prefix + last 4 hex digits of the AP MAC.
@@ -169,10 +239,10 @@ constexpr uint16_t TELEMETRY_HZ = 10;  // push rate — not the 100 Hz loop rate
 constexpr uint32_t LINK_TIMEOUT_MS = 1000;
 
 // ──────────────────────── Bench tests (lib/bench) ───────────────────────────
-// Bring-up only. While true, loop() sweeps the gimbal diagonally: both axes to
-// +TVC_CLAMP_DEG, hold, then both to −TVC_CLAMP_DEG, hold. Set false once a controller
-// drives the servos.
-constexpr bool     BENCH_SERVO_SWEEP    = false;  // off: servos held at centre (tvc::init)
-constexpr uint32_t BENCH_SWEEP_DWELL_MS = 1500;  // hold at each end
+// Bring-up only. While true and DISARMED, loop() steps each nozzle to ±TVC_CLAMP_RAD in turn
+// (X+, X−, Y+, Y−) so its real deflection can be measured against the command — the gear
+// ratio check. ARM and FLY are unaffected.
+constexpr bool     BENCH_SERVO_SWEEP    = false;  // off: servos centred while DISARMED
+constexpr uint32_t BENCH_SWEEP_DWELL_MS = 5000;  // hold at each position
 
 }  // namespace cfg

@@ -4,5 +4,6 @@ safety::Saturation safety::saturation(const tvc::Status& t, const throttle::Stat
     return {t.x_saturated, t.y_saturated, m.saturated};
 }
 
-// STUB — refuses to arm until the gates are implemented.
-bool safety::armingAllowed(const ArmInputs&) { return false; }
+bool safety::armingAllowed(const ArmInputs& in) {
+    return in.imuValid && in.attitudeValid && in.commonThrust <= 0.0f;
+}

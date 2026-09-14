@@ -1,16 +1,21 @@
-// lqr.h — attitude LQR — Mistral (lib/control)
+// lqr.h — attitude LQI — Mistral (lib/control)
 //
-// The attitude controller. u = −K·x with K = cfg::LQR_K (UNTUNED placeholder,
-// computed offline from the vehicle model). State and input ordering are
-// documented next to cfg::LQR_K.
+// 6-state LQI. EVERYTHING IN RADIANS: x = [r1, r2, dr1, dr2, ir1, ir2], u = nozzle rad.
+//   u = −K·x · cfg::LQR_GAIN_SCALE · thrustScale, clamped to ±cfg::TVC_CLAMP_RAD
+// K is symmetric; all mechanical sign lives in ServoCal::dir (see cfg::LQR_K). x_ref = 0:
+// hold the pose captured at boot.
 //
-// Runs only while state_machine::controlActive(). In DISARMED it is bypassed and
-// reset() holds the integral states at zero.
+// Integrator gate: ir = ∫r dt accumulates ONLY when `integrate` is true
+// (state_machine::integrating — FLYING at or above the throttle threshold) and is
+// forced to zero otherwise. On the bench the loop is open — the servos move but the
+// vehicle doesn't rotate — so an ungated integrator winds to its clamp.
 //
-// Anti-windup: integral states on saturated axes (safety::Saturation) freeze.
+// Anti-windup (the bench sketch's rule): block only an increment that would push an axis
+// further into saturation — its u past the clamp, or its servo on a µs backstop. A blanket
+// freeze traps a wound-up integrator with no way back.
 //
-// Which of TVC X/Y corrects pitch vs roll depends on the gimbal mount — verify on
-// the stand.
+// Thrust scheduling (cfg::THRUST_SCHED, off): thrustScale = NOMINAL / max(thrust, LCLAMP).
+// Applied before the clamp, as in the bench sketch, so the nozzle limit still holds.
 #pragma once
 
 #include <attitude.h>
@@ -18,24 +23,18 @@
 
 namespace lqr {
 
-struct Setpoint {
-    float pitch_deg;
-    float roll_deg;
-    float yawRate_dps;  // yaw is rate only — no heading setpoint
+struct Output {
+    float u1, u2;        // rad — clamped nozzle commands for servo X / Y
+    float uRaw1, uRaw2;  // rad — before the clamp
+    float ir1, ir2;      // rad·s — integral states after this step
 };
 
-// Actuator demand, in the units lib/tvc and lib/throttle accept.
-struct Command {
-    float tvcX_deg;
-    float tvcY_deg;
-    float differential;  // yaw — passed to throttle::setDifferential()
-};
-
-// Zero the integral states. Called on entry to DISARMED.
+// Zero the integrals.
 void reset();
 
-// One controller step. Call once per control tick; dt_s in seconds.
-Command update(const Setpoint& sp, const attitude::Estimate& est,
-               const safety::Saturation& sat, float dt_s);
+// One controller step; dt_s in seconds. `sat` is the previous command's actuator
+// saturation. thrust_N feeds scheduling and is ignored while cfg::THRUST_SCHED is off.
+Output update(const attitude::Estimate& est, bool integrate, const safety::Saturation& sat,
+              float thrust_N, float dt_s);
 
 }  // namespace lqr

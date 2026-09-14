@@ -11,8 +11,8 @@
      Join the AP "mistral-xxxx" and open http://192.168.4.1, or open this file straight
      from disk while joined — it falls back to 192.168.4.1.
 
-     Bench bring-up build: status bar, KILL, arm/disarm, throttle and a nozzle readout.
-     The remaining panels are designed in docs/actuators-comms.md §4. -->
+     Bench bring-up build: status bar, KILL, ARM / FLY / DISARM, throttle, attitude and
+     nozzle readouts. The remaining panels are designed in docs/actuators-comms.md §4. -->
 <style>
 :root{--bg:#0d0f12;--panel:#171a1f;--well:#11141a;--line:#262b33;--ink:#e6e8eb;--dim:#8a919a;
  --grey:#4b525c;--amber:#e0a33a;--green:#3ec85f;--red:#d9453b}
@@ -26,10 +26,9 @@ button{font:inherit;color:inherit}
 .top h1{margin:0;font-size:16px;letter-spacing:.14em}
 .pill{font:700 12px ui-monospace,monospace;letter-spacing:.06em;padding:4px 9px;border-radius:999px;background:var(--grey);color:var(--ink)}
 .pill.no-data{background:transparent;border:1px solid var(--line);color:var(--dim)}
-.pill.arming{background:var(--amber);color:#111;animation:pulse 1s infinite}
 .pill.armed{background:var(--amber);color:#111}
+.pill.flying{background:var(--green);color:#111}
 .pill.killed{background:var(--red);color:#fff}
-@keyframes pulse{50%{opacity:.45}}
 .meta{font:12px ui-monospace,monospace;color:var(--dim)}
 .meta.ok{color:var(--green)}
 .meta.stale{color:var(--amber)}
@@ -80,9 +79,10 @@ details[open] summary{margin-bottom:10px}
 </header>
 <main>
 <section>
-  <h2>Arm</h2>
+  <h2>Flight state</h2>
   <div class="row">
     <button id="arm" class="btn" type="button" disabled>ARM</button>
+    <button id="fly" class="btn" type="button" disabled>FLY</button>
     <button id="disarm" class="btn" type="button" disabled>DISARM</button>
   </div>
   <p id="armNote" class="note">Props off or vehicle restrained.</p>
@@ -102,14 +102,23 @@ details[open] summary{margin-bottom:10px}
       <label class="check"><input id="snap" type="checkbox"> Snap to zero on release</label>
     </div>
   </div>
-  <p id="thrNote" class="note">Arm to enable.</p>
+  <p id="thrNote" class="note">FLY to enable.</p>
+</section>
+<section>
+  <h2>Attitude</h2>
+  <div class="grid2">
+    <div class="ro"><div class="k">r1 · about X</div><div class="v" id="attR1">--</div><div class="meta" id="attR1b">--</div></div>
+    <div class="ro"><div class="k">r2 · about Y</div><div class="v" id="attR2">--</div><div class="meta" id="attR2b">--</div></div>
+  </div>
+  <p id="attNote" class="note">Waiting for IMU.</p>
 </section>
 <section>
   <h2>Nozzle</h2>
   <div class="grid2">
-    <div class="ro"><div class="k">X · pitch</div><div class="v" id="nozX">--</div><div class="meta" id="nozXus">-- µs</div></div>
-    <div class="ro"><div class="k">Y · roll</div><div class="v" id="nozY">--</div><div class="meta" id="nozYus">-- µs</div></div>
+    <div class="ro"><div class="k">X · r1</div><div class="v" id="nozX">--</div><div class="meta" id="nozXus">-- µs</div></div>
+    <div class="ro"><div class="k">Y · r2</div><div class="v" id="nozY">--</div><div class="meta" id="nozYus">-- µs</div></div>
   </div>
+  <p id="ctlNote" class="note">--</p>
 </section>
 <section><h2>Console</h2><pre id="log"></pre></section>
 <section><details id="raw"><summary>Raw telemetry</summary><pre id="telemetry">waiting for first frame</pre></details></section>
@@ -126,7 +135,7 @@ const STALE_MS       = 1000;  // no telemetry for this long → STALE
 const ACK_TIMEOUT_MS = 2000;
 const LEVEL_MS       = 60;    // a dragged slider sends its newest value at most this often
 const PING_MS        = 250;   // heartbeat; the vehicle disarms after cfg::LINK_TIMEOUT_MS without one
-const ARM_CONFIRM_MS = 3000;  // the second ARM tap must land within this
+const CONFIRM_MS     = 3000;  // the second tap of a two-tap button must land within this
 const LOG_LINES      = 200;
 
 let ws = null, wasOpen = false, nextId = 1, lastFrameMs = 0, lastUptimeMs = null;
@@ -134,7 +143,7 @@ const pending = new Map();  // command id → {type, resolve, sentMs}
 const levels  = new Map();  // command type → {fields, timer}, see sendLevel()
 
 // The vehicle drops the held throttle to 0 when it receives any of these (wifi_link).
-const ZEROES_THROTTLE = new Set(['arm', 'disarm', 'kill']);
+const ZEROES_THROTTLE = new Set(['arm', 'fly', 'disarm', 'kill']);
 
 const $ = id => document.getElementById(id);
 function set(id, text) { $(id).textContent = text; }
@@ -257,9 +266,10 @@ try { Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY))); } catch (e) {
 function saveUi() { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch (e) {} }
 
 // ── Vehicle state ────────────────────────────────────────────────────────────
-let vehicleState = null;   // DISARMED | ARMING | ARMED, from telemetry
-let killed       = false;  // KILL sent — shown as KILLED until the next arm
-let expectDisarm = false;  // the page asked for this disarm; don't report it as unexpected
+let vehicleState    = null;   // DISARMED | ARMED | FLYING, from telemetry
+let killed          = false;  // KILL sent — shown as KILLED until the next arm
+let expectDisarm    = false;  // the page asked for this disarm; don't report it as unexpected
+let expectMotorsOff = false;  // the page asked FLYING → ARMED
 
 function showState() {
   const s = vehicleState === null ? 'NO DATA' : (killed && vehicleState === 'DISARMED' ? 'KILLED' : vehicleState);
@@ -269,20 +279,32 @@ function showState() {
 }
 
 function onVehicleState(t) {
-  const s = t.throttle.state;
-  if ((vehicleState === 'ARMED' || vehicleState === 'ARMING') && s === 'DISARMED' && !expectDisarm) {
-    log('vehicle disarmed itself (auto-cut or link loss)');
+  const s = t.state, esc = t.throttle.state;
+  if (vehicleState && vehicleState !== 'DISARMED' && s === 'DISARMED' && !expectDisarm) {
+    log('vehicle disarmed itself (link loss)');
+  }
+  if (vehicleState === 'FLYING' && s === 'ARMED' && !expectMotorsOff) {
+    log('vehicle stopped the motors (auto-cut)');
   }
   if (s === 'DISARMED') expectDisarm = false;
+  if (s !== 'FLYING') expectMotorsOff = false;
   vehicleState = s;
 
-  setThrottleEnabled(s === 'ARMED', Math.round(t.throttle.normalised * 100));
-  $('arm').disabled = s !== 'DISARMED';
+  setThrottleEnabled(s === 'FLYING' && esc === 'ARMED', Math.round(t.throttle.normalised * 100));
+  $('arm').disabled = s === 'ARMED';
+  $('fly').disabled = s !== 'ARMED';
   $('disarm').disabled = s === 'DISARMED';
-  if (s !== 'DISARMED' && armConfirmTimer) setArmConfirm(false);
-  set('armNote', s === 'ARMING' ? 'Arming — ESCs held at minimum, ' + Math.ceil(t.throttle.armRemainingMs / 1000) + ' s'
-               : s === 'ARMED'  ? 'ARMED — throttle is live.'
-               :                  'Props off or vehicle restrained.');
+  if (s !== 'DISARMED' && confirmTimers.arm) setConfirm('arm', false);
+  if (s !== 'ARMED' && confirmTimers.fly) setConfirm('fly', false);
+  if (!confirmTimers.arm) set('arm', s === 'FLYING' ? 'MOTORS OFF' : 'ARM');
+
+  set('armNote',
+      s === 'FLYING' ? (esc === 'ARMING'
+                          ? 'FLYING — ESCs held at minimum, ' + Math.ceil(t.throttle.armRemainingMs / 1000) + ' s'
+                          : 'FLYING — throttle live, integrators ' +
+                            (t.ctl && t.ctl.integrating ? 'on.' : 'held at zero (throttle below threshold).'))
+    : s === 'ARMED'  ? 'ARMED — servos live, motors off. Tilt by hand: the nozzle must oppose.'
+    :                  'Props off or vehicle restrained.');
   showState();
 }
 
@@ -291,12 +313,15 @@ function onVehicleState(t) {
 function linkDown() {
   setThrottleEnabled(false, 0);
   $('arm').disabled = true;
-  if (armConfirmTimer) setArmConfirm(false);
+  $('fly').disabled = true;
+  if (confirmTimers.arm) setConfirm('arm', false);
+  if (confirmTimers.fly) setConfirm('fly', false);
 }
 
 // ── Throttle slider ──────────────────────────────────────────────────────────
 // Custom vertical slider. Dragging is RELATIVE to where the finger lands, so a tap near
-// the top can never jump straight to high throttle. Enabled only while ARMED.
+// the top can never jump straight to high throttle. Enabled only while FLYING with the
+// ESCs armed.
 const thr = {el: $('thr'), pct: 0, enabled: false, drag: null};
 
 function renderThrottle() {
@@ -316,7 +341,7 @@ function setThrottle(pct) {
   sendLevel('throttle', {value: pct / 100});
 }
 
-// Local reset only: the vehicle already zeroes throttle on arm, disarm, kill and link loss.
+// Local reset only: the vehicle already zeroes throttle on arm, fly, disarm, kill and link loss.
 function zeroThrottleUi() {
   thr.drag = null;
   thr.pct = 0;
@@ -330,7 +355,7 @@ function setThrottleEnabled(on, vehiclePct) {
   thr.el.setAttribute('aria-disabled', String(!on));
   $('thrZero').disabled = !on;
   if (on) { thr.drag = null; thr.pct = vehiclePct; renderThrottle(); } else zeroThrottleUi();
-  set('thrNote', on ? 'Drag up to add throttle.' : 'Arm to enable.');
+  set('thrNote', on ? 'Drag up to add throttle.' : 'FLY to enable.');
 }
 
 thr.el.addEventListener('pointerdown', e => {
@@ -360,22 +385,36 @@ $('thrZero').onclick = () => setThrottle(0);
 $('snap').checked = ui.snap;
 $('snap').onchange = () => { ui.snap = $('snap').checked; saveUi(); };
 
-// ── Arm / disarm / kill ──────────────────────────────────────────────────────
-let armConfirmTimer = null;
+// ── ARM / FLY / DISARM / KILL ────────────────────────────────────────────────
+// ARM and FLY need a confirming second tap. ARM while FLYING is "motors off": one tap,
+// because it only ever makes the vehicle safer.
+const CONFIRM_LABEL = {arm: 'TAP AGAIN TO ARM', fly: 'TAP AGAIN TO FLY'};
+const confirmTimers = {arm: null, fly: null};
 
-function setArmConfirm(on) {
-  clearTimeout(armConfirmTimer);
-  armConfirmTimer = on ? setTimeout(() => setArmConfirm(false), ARM_CONFIRM_MS) : null;
-  $('arm').classList.toggle('confirm', on);
-  set('arm', on ? 'TAP AGAIN TO ARM' : 'ARM');
+function setConfirm(id, on) {
+  clearTimeout(confirmTimers[id]);
+  confirmTimers[id] = on ? setTimeout(() => setConfirm(id, false), CONFIRM_MS) : null;
+  $(id).classList.toggle('confirm', on);
+  set(id, on ? CONFIRM_LABEL[id] : (id === 'arm' && vehicleState === 'FLYING' ? 'MOTORS OFF' : id.toUpperCase()));
 }
 
 $('arm').onclick = () => {
-  if (!armConfirmTimer) { setArmConfirm(true); return; }
-  setArmConfirm(false);
+  if (vehicleState === 'FLYING') {
+    expectMotorsOff = true;
+    zeroThrottleUi();
+    send('arm');
+    return;
+  }
+  if (!confirmTimers.arm) { setConfirm('arm', true); return; }
+  setConfirm('arm', false);
   killed = false;
-  zeroThrottleUi();
   send('arm');
+};
+$('fly').onclick = () => {
+  if (!confirmTimers.fly) { setConfirm('fly', true); return; }
+  setConfirm('fly', false);
+  zeroThrottleUi();
+  send('fly');
 };
 $('disarm').onclick = () => {
   expectDisarm = true;
@@ -385,7 +424,8 @@ $('disarm').onclick = () => {
 $('kill').onclick = () => {
   killed = true;
   expectDisarm = true;
-  if (armConfirmTimer) setArmConfirm(false);
+  if (confirmTimers.arm) setConfirm('arm', false);
+  if (confirmTimers.fly) setConfirm('fly', false);
   zeroThrottleUi();
   send('kill');
   showState();
@@ -409,10 +449,29 @@ function fmtUptime(ms) {
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
 
+function fmtDeg(v) { return (v >= 0 ? '+' : '') + v.toFixed(1) + '°'; }
+
+// Both estimators side by side, so a disagreement on the same tilt is visible.
+function showAttitude(a) {
+  if (!a) return;
+  [['1', a.cf1Deg, a.fu1Deg, a.dr1Dps], ['2', a.cf2Deg, a.fu2Deg, a.dr2Dps]].forEach(([n, cf, fu, dr]) => {
+    set('attR' + n, fmtDeg(a.fusion ? fu : cf));
+    set('attR' + n + 'b', 'CF ' + fmtDeg(cf) + ' · Fusion ' + fmtDeg(fu) + ' · ' + dr.toFixed(0) + '°/s');
+  });
+  set('attNote', (a.valid ? '' : 'Fusion converging — hold still. ') + 'Controller input: ' +
+      (a.fusion ? 'Fusion' : 'complementary filter') + '. Yaw rate ' + a.yawRateDps.toFixed(0) + '°/s.');
+}
+
 function showNozzle(axis, deg, us, sat) {
-  set('noz' + axis, (deg >= 0 ? '+' : '') + deg.toFixed(1) + '°');
+  set('noz' + axis, fmtDeg(deg));
   set('noz' + axis + 'us', us + ' µs' + (sat ? '  SAT' : ''));
   $('noz' + axis + 'us').classList.toggle('sat', sat);
+}
+
+function showControl(c) {
+  if (!c) return;
+  set('ctlNote', 'u ' + fmtDeg(c.u1Deg) + ' / ' + fmtDeg(c.u2Deg) +
+      ' · integrals ' + c.ir1.toFixed(3) + ' / ' + c.ir2.toFixed(3) + ' rad·s');
 }
 
 // ── Routing — one handler per frame type ─────────────────────────────────────
@@ -427,6 +486,8 @@ const HANDLERS = {
     set('escUs', m.throttle.esc1Us + ' / ' + m.throttle.esc2Us);
     showNozzle('X', m.tvc.xDeg, m.tvc.xUs, m.tvc.xSaturated);
     showNozzle('Y', m.tvc.yDeg, m.tvc.yUs, m.tvc.ySaturated);
+    showAttitude(m.att);
+    showControl(m.ctl);
     if ($('raw').open) set('telemetry', JSON.stringify(m, null, 1));
   },
   ack(m) {
