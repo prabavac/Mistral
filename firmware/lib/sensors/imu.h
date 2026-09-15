@@ -33,6 +33,11 @@ struct Reading {
 // still. Returns false if the sensor does not respond — see beginCode().
 bool init();
 
+// Re-measure the gyro bias and gravity direction: the same cfg::IMU_BIAS_SAMPLES average as
+// init(), blocking ~1.5 s. Keeps the previous values and returns false if the vehicle moved (any
+// gyro axis spanning more than cfg::IMU_STILL_MAX_SPREAD_DPS) or the sensor never started.
+bool calibrate();
+
 // The library's begin() result: 1 ok, -3 WHO_AM_I mismatch (wrong bus, wrong address, or
 // CS floating low, which puts the chip in SPI mode).
 int beginCode();

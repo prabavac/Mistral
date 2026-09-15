@@ -86,6 +86,8 @@ void tvc::setDeflection(float xRad, float yRad) {
 
 void tvc::setTrim(Axis axis, int16_t us) {
     Servo& s = (axis == Axis::X) ? servoX : servoY;
+    if (us > cfg::TVC_TRIM_MAX_US) us = cfg::TVC_TRIM_MAX_US;
+    if (us < -cfg::TVC_TRIM_MAX_US) us = -cfg::TVC_TRIM_MAX_US;
     if (us == s.trimUs) return;
     s.trimUs = us;
     compute(s, s.rad);

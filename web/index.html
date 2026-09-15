@@ -3,126 +3,333 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0d0f12">
+<meta name="theme-color" content="#f2f2f7">
 <title>Mistral Ground Station</title>
 <!-- Mistral ground station. THE ONLY COPY: platformio.ini embeds this file into the
      firmware at build time and lib/wifi_link serves it from flash — edit here, reflash.
      Self-contained: no CDN, no external assets, works with no internet.
-     Join the AP "mistral-xxxx" and open http://192.168.4.1, or open this file straight
-     from disk while joined — it falls back to 192.168.4.1.
 
-     Bench bring-up build: status bar, KILL, ARM / FLY / DISARM, throttle, attitude and
-     nozzle readouts. The remaining panels are designed in docs/actuators-comms.md §4. -->
+     On the vehicle's network (mistral-xxxx) it connects to ws://192.168.4.1/ws. With no
+     vehicle — the ESP off, or this file opened from disk on another network — it falls back
+     to DEMO mode: simulated telemetry, every command disabled. ?demo forces demo mode;
+     ?demo=<seconds> starts the simulation at that point in its cycle; #graphs opens Graphs.
+
+     Look: modern macOS (system font, cards, segmented control) with System 6 accents taken
+     from system.css (github.com/sakofchit/system.css, MIT): striped title plate and Chicago 12
+     headings (ChiKareGo2, a recreation by Giles Booth, embedded below). -->
 <style>
-:root{--bg:#0d0f12;--panel:#171a1f;--well:#11141a;--line:#262b33;--ink:#e6e8eb;--dim:#8a919a;
- --grey:#4b525c;--amber:#e0a33a;--green:#3ec85f;--red:#d9453b}
+@font-face{font-family:Chicago_12;src:url(data:font/woff2;base64,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) format("woff2");font-display:block}
+:root{
+  --bg:#f2f2f7;--card:#fff;--tile:#f5f5f7;--sep:rgba(60,60,67,.14);
+  --label:#1d1d1f;--label2:#6e6e73;--label3:#a1a1a6;--fill:rgba(118,118,128,.12);
+  --blue:#007aff;--orange:#ff9500;--green:#34c759;--red:#ff3b30;--amber:#ff9f0a;--purple:#af52de;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Monaco,monospace;
+  --retro:Chicago_12,-apple-system,BlinkMacSystemFont,sans-serif;
+  --shadow:0 0 0 .5px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.07);
+  --gap:14px;
+}
 *{box-sizing:border-box}
-html,body{background:var(--bg)}
-body{margin:0;font:15px/1.4 system-ui,-apple-system,sans-serif;color:var(--ink);-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html{background:var(--bg)}
+body{margin:0;color:var(--label);font:14px/1.35 var(--sans);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit}
-.top{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:12px;padding:10px 16px;
- background:rgba(13,15,18,.96);border-bottom:1px solid var(--line)}
-.status{flex:1;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;min-width:0}
-.top h1{margin:0;font-size:16px;letter-spacing:.14em}
-.pill{font:700 12px ui-monospace,monospace;letter-spacing:.06em;padding:4px 9px;border-radius:999px;background:var(--grey);color:var(--ink)}
-.pill.no-data{background:transparent;border:1px solid var(--line);color:var(--dim)}
-.pill.armed{background:var(--amber);color:#111}
-.pill.flying{background:var(--green);color:#111}
-.pill.killed{background:var(--red);color:#fff}
-.meta{font:12px ui-monospace,monospace;color:var(--dim)}
-.meta.ok{color:var(--green)}
-.meta.stale{color:var(--amber)}
-.meta.down{color:var(--red)}
-.kill{flex:0 0 auto;min-width:92px;min-height:54px;border:0;border-radius:12px;background:var(--red);color:#fff;
- font-weight:800;font-size:19px;letter-spacing:.1em;box-shadow:0 3px 0 #7d1f19}
-.kill:active{transform:translateY(2px);box-shadow:0 1px 0 #7d1f19}
-main{max-width:720px;margin:0 auto;padding:12px 16px 32px}
-section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
-h2{margin:0 0 10px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.retro{font-family:var(--retro);font-weight:normal;-webkit-font-smoothing:none}
+.app{display:flex;flex-direction:column;min-height:100vh}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+.toolbar{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:10px 20px;
+  background:rgba(248,248,250,.9);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid var(--sep)}
+.brand{display:flex;align-items:center;gap:9px;font-size:16px;line-height:16px;white-space:nowrap}
+.brand .stripes{width:30px;height:13px;background:repeating-linear-gradient(var(--label) 0 1px,transparent 1px 3px)}
+.segmented{display:inline-flex;padding:2px;border-radius:9px;background:var(--fill)}
+.seg{min-width:80px;height:28px;padding:0 14px;border:0;border-radius:7px;background:transparent;font:500 13px/1 var(--sans);cursor:pointer}
+.seg.on{background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,.14),0 0 0 .5px rgba(0,0,0,.05)}
+.segmented.small .seg{min-width:52px;height:24px;padding:0 10px;font-size:12px}
+.spacer{flex:1}
+.status{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.pill,.link{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 12px;border-radius:14px;
+  background:var(--fill);font:600 12px/1 var(--sans);letter-spacing:.04em;white-space:nowrap}
+.pill::before,.link::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--label3)}
+.pill.no-data{color:var(--label2)}
+.pill.armed{background:rgba(255,159,10,.16);color:#8a5100}.pill.armed::before{background:var(--amber)}
+.pill.flying{background:rgba(52,199,89,.16);color:#1b7a35}.pill.flying::before{background:var(--green)}
+.pill.killed{background:var(--red);color:#fff}.pill.killed::before{background:#fff}
+.link{color:var(--label2)}.link::before{background:currentColor}
+.link.ok{color:#1b7a35}.link.stale{color:#8a5100}.link.down{color:#c4251c}
+.link.demo{color:#7a34a8;background:rgba(175,82,222,.14)}
+.uptime{font:500 12px/1 var(--mono);color:var(--label2);font-variant-numeric:tabular-nums;min-width:44px}
+.kill{height:40px;min-width:118px;padding:0 22px;border:0;border-radius:10px;background:var(--red);color:#fff;
+  font:700 15px/1 var(--sans);letter-spacing:.1em;box-shadow:0 1px 2px rgba(0,0,0,.2),inset 0 0 0 .5px rgba(0,0,0,.15);cursor:pointer}
+.kill:active{background:#d62d24}
+.seg:focus-visible,.btn:focus-visible,.kill:focus-visible{outline:3px solid rgba(0,122,255,.45);outline-offset:2px}
+
+/* ── Content ─────────────────────────────────────────────────────────────── */
+main{flex:1;min-height:0;padding:16px 20px 20px}
+.card{display:flex;flex-direction:column;min-width:0;min-height:0;padding:14px 16px 16px;border-radius:14px;background:var(--card);box-shadow:var(--shadow)}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:22px;margin-bottom:12px}
+.card-head h2{flex:none;margin:0;font-size:16px;line-height:18px;white-space:nowrap}
+.caption{font-size:12px;color:var(--label2)}
+.note{margin:12px 0 0;font-size:13px;line-height:1.4;color:var(--label2)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tile{display:flex;flex-direction:column;gap:4px;min-width:0;padding:10px 12px;border-radius:10px;background:var(--tile)}
+.k{font:500 12px/1.2 var(--sans);color:var(--label2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v{font:600 26px/1.15 var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{font:500 12px/1.3 var(--mono);color:var(--label2);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.sub.sat{color:var(--red);font-weight:700}
+
+.btn{flex:1;height:38px;min-width:0;padding:0 12px;border:0;border-radius:9px;background:var(--card);color:var(--label);
+  box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 1px 1.5px rgba(0,0,0,.1);font:600 13px/1 var(--sans);letter-spacing:.02em;cursor:pointer;white-space:nowrap}
+.btn:active{background:#ebebf0}
+.btn.confirm{background:var(--amber);color:#fff;box-shadow:none}
+.btn:disabled{background:var(--tile);color:var(--label3);box-shadow:0 0 0 .5px rgba(0,0,0,.06);cursor:default}
 .row{display:flex;gap:10px}
-.btn{flex:1;min-height:52px;border:1px solid var(--line);border-radius:10px;background:#222730;font-weight:700;letter-spacing:.06em}
-.btn:active{background:#2b313b}
-.btn.confirm{background:var(--amber);border-color:var(--amber);color:#111}
-.btn:disabled{opacity:.35}
-.note{margin:8px 0 0;min-height:1.4em;font-size:13px;color:var(--dim)}
-.throttle{display:flex;gap:18px;align-items:stretch}
-.slider-wrap{flex:0 0 auto;padding:16px 8px}
-.vslider{position:relative;width:76px;height:min(340px,50vh);border-radius:14px;background:var(--well);border:1px solid var(--line);
- touch-action:none;user-select:none;-webkit-user-select:none;cursor:ns-resize}
-.vslider .fill{position:absolute;left:0;right:0;bottom:0;height:0;border-radius:0 0 13px 13px;background:linear-gradient(0deg,#9c6718,var(--amber))}
-.vslider .thumb{position:absolute;left:-8px;right:-8px;bottom:0;height:30px;transform:translateY(50%);border-radius:9px;
- background:#e6e8eb;box-shadow:0 2px 8px rgba(0,0,0,.6)}
-.vslider[aria-disabled="true"]{opacity:.3;cursor:not-allowed}
-.vslider:focus-visible{outline:2px solid var(--amber);outline-offset:4px}
-.readouts{flex:1;display:grid;gap:8px;align-content:start;min-width:0}
-.ro{background:var(--well);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
-.ro .k{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
-.ro .v{font:700 22px ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.check{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--dim)}
-.check input{width:20px;height:20px;accent-color:var(--amber)}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.sat{color:var(--amber)}
-pre{margin:0;font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;word-break:break-all;max-height:40vh;overflow:auto}
-summary{cursor:pointer;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
-details[open] summary{margin-bottom:10px}
+
+/* Flight-state steps */
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:0 0 12px;padding:0;list-style:none}
+.steps li{min-width:0;padding:8px 10px;border-radius:9px;background:var(--tile);color:var(--label3)}
+.steps b{display:block;font:600 13px/1.2 var(--sans)}
+.steps span{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#step-DISARMED.on{background:rgba(118,118,128,.18);color:var(--label)}
+#step-ARMED.on{background:rgba(255,159,10,.18);color:#8a5100}
+#step-FLYING.on{background:rgba(52,199,89,.18);color:#1b7a35}
+#step-DISARMED.killed{background:var(--red);color:#fff}
+
+/* Throttle */
+.throttle{display:flex;gap:6px;min-height:0}
+.slider-col{display:flex;padding:12px 92px 12px 10px}
+.vslider{position:relative;width:46px;height:300px;border-radius:12px;background:var(--fill);touch-action:none;user-select:none;-webkit-user-select:none;cursor:ns-resize}
+.vslider .fill{position:absolute;left:0;right:0;bottom:0;height:0;border-radius:12px;background:linear-gradient(0deg,#ff9500,#ffb340)}
+.vslider .thumb{position:absolute;left:-6px;right:-6px;bottom:0;height:22px;transform:translateY(50%);border-radius:11px;background:#fff;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 2px 6px rgba(0,0,0,.22)}
+.vslider .mark{position:absolute;left:-4px;right:-4px;height:0;border-top:2px solid var(--green)}
+.vslider .mark span{position:absolute;left:100%;top:-8px;margin-left:10px;font:600 11px/1 var(--sans);color:#1b7a35;white-space:nowrap}
+.vslider[aria-disabled="true"]{cursor:not-allowed}
+.vslider[aria-disabled="true"] .fill{background:linear-gradient(0deg,#c7c7cc,#d1d1d6)}
+.vslider:focus-visible{outline:3px solid rgba(0,122,255,.45);outline-offset:4px}
+.readouts{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0}
+.readouts .btn{flex:none}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--label2);cursor:pointer}
+.check input{width:16px;height:16px;margin:0;accent-color:var(--blue)}
+
+/* Attitude scope */
+.scope-wrap{position:relative;height:340px;min-height:0}
+.scope-wrap canvas,.plot canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.key{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 16px;margin:8px 0 12px;font-size:12px;color:var(--label2)}
+.key i{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:-1px;border-radius:50%}
+.key .dot{background:var(--blue)}
+.key .ring{border:2.5px solid var(--orange)}
+.key .clamp{border:1.5px solid rgba(255,59,48,.7)}
+
+.console{height:220px;margin:0;padding:10px 12px;border-radius:10px;background:var(--tile);overflow:auto;
+  font:12px/1.55 var(--mono);color:var(--label2);white-space:pre-wrap;word-break:break-word}
+
+/* Graphs */
+.graphs{display:flex;flex-direction:column;gap:var(--gap)}
+.graph-bar{flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px 12px;padding:10px 14px}
+.graph-bar .btn{flex:none;padding:0 16px}
+.rec i{display:inline-block;width:10px;height:10px;margin-right:8px;vertical-align:-1px;border-radius:50%;background:var(--red)}
+.rec.on{background:var(--red);color:#fff;box-shadow:none}
+.rec.on i{border-radius:2px;background:#fff}
+.rec-stat{font:500 12px/1 var(--mono);color:var(--label2);font-variant-numeric:tabular-nums}
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:var(--gap)}
+.legend{flex:1;min-width:0;display:flex;justify-content:flex-end;gap:12px;overflow:hidden;font:500 12px/1 var(--mono);color:var(--label2);white-space:nowrap}
+.legend .chip i{display:inline-block;width:12px;height:3px;margin-right:6px;vertical-align:3px;border-radius:2px}
+.legend b{color:var(--label);font-weight:600}
+.legend .when{color:var(--label)}
+.plot{position:relative;height:250px;min-height:0}
+
+/* Gains inspector */
+.tool{height:28px;padding:0 14px;border:0;border-radius:8px;background:var(--fill);font:500 13px/1 var(--sans);cursor:pointer;white-space:nowrap}
+.tool[aria-pressed="true"]{background:var(--blue);color:#fff}
+.workspace{display:flex;flex-direction:column;flex:1;min-height:0}
+.inspector{order:-1;margin:16px 20px 0;padding:14px 16px 16px;border-radius:14px;background:var(--card);box-shadow:var(--shadow)}
+.inspector .card-head{margin-bottom:4px}
+.inspector .card-head .btn{flex:none;height:28px;padding:0 12px;font-size:12px}
+.inspector .note{margin-top:4px;font-size:12px}
+.gain-axis{margin-top:12px;padding-top:10px;border-top:1px solid var(--sep)}
+.gain-axis h3{margin:0 0 2px;font:600 13px/1.2 var(--sans)}
+.gain-row{padding:7px 0 5px}
+.gain-row label{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font:500 13px/1.2 var(--sans)}
+.gain-row label small{font-size:11px;color:var(--label3)}
+.gain-row.modified label::after{content:"changed";font:600 10px/1 var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--blue)}
+.gain-ctl{display:flex;align-items:center;gap:10px;margin-top:5px}
+.range-wrap{position:relative;flex:1;min-width:0;height:22px;display:flex;align-items:center}
+.range-wrap input{width:100%;margin:0;accent-color:var(--blue)}
+.range-wrap .tick{position:absolute;top:0;bottom:0;left:calc(8px + (100% - 16px) * var(--p));width:2px;margin-left:-1px;border-radius:1px;background:var(--label);opacity:.5;pointer-events:none}
+.num{width:76px;height:28px;padding:0 8px;border:0;border-radius:7px;background:var(--tile);box-shadow:inset 0 0 0 .5px rgba(0,0,0,.14);
+  font:600 13px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--label);text-align:right}
+.num:focus{outline:3px solid rgba(0,122,255,.45);outline-offset:1px}
+.gain-row.modified .num{box-shadow:inset 0 0 0 1.5px var(--blue)}
+.gain-meta{margin-top:3px;font:500 11px/1.2 var(--mono);color:var(--label3)}
+.inspector.waiting #gainRows,.inspector.waiting #trimRows{opacity:.4;pointer-events:none}
+.trim-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.trim-head .btn{flex:none;height:26px;padding:0 12px;font-size:12px}
+.card-head .btn.mini{flex:none;height:28px;padding:0 12px;font-size:12px}
+#attSource{margin-left:auto}
+
+/* ── Layouts ─────────────────────────────────────────────────────────────── */
+@media (max-width:420px){.btn{padding:0 8px;font-size:12px;letter-spacing:0}}
+.control{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--gap)}
+.col{display:flex;flex-direction:column;gap:var(--gap);min-width:0;min-height:0}
+@media (min-width:760px){
+  .control{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .col-c{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+/* Laptop and up: one screen, no page scroll. Cards grow into the space instead. */
+@media (min-width:1100px) and (min-height:600px){
+  html,body{height:100%;overflow:hidden}
+  .app{height:100%;min-height:0}
+  main{display:flex;flex-direction:column}
+  .view{flex:1;min-height:0}
+  .control{height:100%;grid-template-columns:minmax(330px,370px) minmax(0,1fr) minmax(330px,390px)}
+  .col-c{grid-column:auto;display:flex}
+  .grow{flex:1}
+  .throttle{flex:1}
+  .slider-col{align-items:stretch}
+  .vslider{height:auto;min-height:140px}
+  .scope-wrap{flex:1;height:auto;min-height:160px}
+  .console{flex:1;height:auto;min-height:80px}
+  .graphs{height:100%}
+  .workspace{flex-direction:row}
+  main{flex:1;min-width:0}
+  .inspector{order:0;flex:none;width:320px;margin:0;border-radius:0;box-shadow:none;border-left:1px solid var(--sep);overflow:auto}
+  .workspace:has(.inspector:not([hidden])) .control{grid-template-columns:minmax(300px,340px) minmax(0,1fr) minmax(300px,340px)}
+  .chart-grid{flex:1;min-height:0;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}
+  .plot{flex:1;height:auto}
+}
+/* Laptop with the Gains inspector open but too narrow for three columns beside it: two columns,
+   and the control view scrolls on its own while the inspector stays put. */
+@media (min-width:1100px) and (max-width:1439px) and (min-height:600px){
+  .workspace:has(.inspector:not([hidden])) main{overflow:auto}
+  .workspace:has(.inspector:not([hidden])) .control{flex:none;height:auto;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .workspace:has(.inspector:not([hidden])) .control .col-c{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .workspace:has(.inspector:not([hidden])) .vslider{height:300px}
+  .workspace:has(.inspector:not([hidden])) .scope-wrap{flex:none;height:340px}
+  .workspace:has(.inspector:not([hidden])) .console{flex:none;height:220px}
+  .workspace:has(.inspector:not([hidden])) .graphs{flex:none;height:auto}
+  .workspace:has(.inspector:not([hidden])) .chart-grid{flex:none;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none}
+  .workspace:has(.inspector:not([hidden])) .plot{flex:none;height:250px}
+}
 </style>
 </head>
 <body>
-<header class="top">
+<div class="app">
+<header class="toolbar">
+  <div class="brand retro"><span class="stripes"></span>Mistral<span class="stripes"></span></div>
+  <div class="segmented" role="tablist">
+    <button id="tab-control" class="seg on" type="button" role="tab" aria-selected="true">Control</button>
+    <button id="tab-graphs" class="seg" type="button" role="tab" aria-selected="false">Graphs</button>
+  </div>
+  <span class="spacer"></span>
+  <button id="gainsToggle" class="tool" type="button" aria-pressed="false" title="Live gains and servo trim">Tuning</button>
   <div class="status">
-    <h1>MISTRAL</h1>
     <span id="state" class="pill no-data">NO DATA</span>
-    <span id="link" class="meta down">CONNECTING</span>
-    <span id="uptime" class="meta">--:--</span>
+    <span id="link" class="link down">CONNECTING</span>
+    <span id="uptime" class="uptime" title="Vehicle uptime">--:--</span>
   </div>
   <button id="kill" class="kill" type="button">KILL</button>
 </header>
+<div class="workspace">
 <main>
-<section>
-  <h2>Flight state</h2>
-  <div class="row">
-    <button id="arm" class="btn" type="button" disabled>ARM</button>
-    <button id="fly" class="btn" type="button" disabled>FLY</button>
-    <button id="disarm" class="btn" type="button" disabled>DISARM</button>
-  </div>
-  <p id="armNote" class="note">Props off or vehicle restrained.</p>
-</section>
-<section>
-  <h2>Throttle</h2>
-  <div class="throttle">
-    <div class="slider-wrap">
-      <div id="thr" class="vslider" role="slider" tabindex="0" aria-label="Throttle" aria-orientation="vertical"
-           aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-disabled="true"><div class="fill"></div><div class="thumb"></div></div>
+  <div id="view-control" class="view control" role="tabpanel">
+    <div class="col">
+      <section class="card">
+        <div class="card-head"><h2 class="retro">Flight state</h2></div>
+        <ol class="steps">
+          <li id="step-DISARMED"><b>Disarmed</b><span>everything safe</span></li>
+          <li id="step-ARMED"><b>Armed</b><span>servos live</span></li>
+          <li id="step-FLYING"><b>Flying</b><span>motors live</span></li>
+        </ol>
+        <div class="row">
+          <button id="arm" class="btn" type="button" disabled>ARM</button>
+          <button id="fly" class="btn" type="button" disabled>FLY</button>
+          <button id="disarm" class="btn" type="button" disabled>DISARM</button>
+        </div>
+        <p id="armNote" class="note">Props off or vehicle restrained.</p>
+      </section>
+      <section class="card grow">
+        <div class="card-head"><h2 class="retro">Throttle</h2><span class="caption">FLY, then drag up</span></div>
+        <div class="throttle">
+          <div class="slider-col">
+            <div id="thr" class="vslider" role="slider" tabindex="0" aria-label="Throttle" aria-orientation="vertical"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-disabled="true">
+              <div class="fill"></div>
+              <div id="thrMark" class="mark" hidden><span>integrators on</span></div>
+              <div class="thumb"></div>
+            </div>
+          </div>
+          <div class="readouts">
+            <div class="tile"><span class="k">Slider</span><span class="v" id="thrPct">0%</span></div>
+            <div class="tile"><span class="k">Vehicle</span><span class="v" id="thrVeh">--</span></div>
+            <div class="tile"><span class="k">ESC 1 / ESC 2</span><span class="sub" id="escUs">-- / -- µs</span></div>
+            <button id="thrZero" class="btn" type="button" disabled>Zero</button>
+            <label class="check"><input id="snap" type="checkbox">Snap to zero on release</label>
+          </div>
+        </div>
+        <p id="thrNote" class="note">FLY to enable.</p>
+      </section>
     </div>
-    <div class="readouts">
-      <div class="ro"><div class="k">Slider</div><div class="v" id="thrPct">0%</div></div>
-      <div class="ro"><div class="k">Vehicle cmd</div><div class="v" id="thrVeh">--</div></div>
-      <div class="ro"><div class="k">ESC1 / ESC2 µs</div><div class="v" id="escUs">-- / --</div></div>
-      <button id="thrZero" class="btn" type="button" disabled>ZERO</button>
-      <label class="check"><input id="snap" type="checkbox"> Snap to zero on release</label>
+    <div class="col">
+      <section class="card grow">
+        <div class="card-head"><h2 class="retro">Attitude</h2><span class="caption" id="attSource"></span><button id="zeroImu" class="btn mini" type="button" disabled title="DISARMED, vehicle still on the launch spot: re-measure the gyro offset and re-level to this ground">Zero IMU</button></div>
+        <div class="scope-wrap"><canvas id="scope"></canvas></div>
+        <div class="key"><span><i class="dot"></i>attitude</span><span><i class="ring"></i>nozzle command — sits opposite</span><span><i class="clamp"></i>nozzle clamp</span></div>
+        <div class="grid2">
+          <div class="tile"><span class="k">r1 · about X</span><span class="v" id="attR1">--</span><span class="sub" id="attR1b">--</span></div>
+          <div class="tile"><span class="k">r2 · about Y</span><span class="v" id="attR2">--</span><span class="sub" id="attR2b">--</span></div>
+        </div>
+        <p id="attNote" class="note">Waiting for IMU.</p>
+      </section>
+    </div>
+    <div class="col col-c">
+      <section class="card">
+        <div class="card-head"><h2 class="retro">Nozzle</h2></div>
+        <div class="grid2">
+          <div class="tile"><span class="k">X · corrects r1</span><span class="v" id="nozX">--</span><span class="sub" id="nozXus">-- µs</span></div>
+          <div class="tile"><span class="k">Y · corrects r2</span><span class="v" id="nozY">--</span><span class="sub" id="nozYus">-- µs</span></div>
+        </div>
+        <p id="ctlNote" class="note">--</p>
+      </section>
+      <section class="card grow">
+        <div class="card-head"><h2 class="retro">Console</h2></div>
+        <pre id="log" class="console"></pre>
+      </section>
     </div>
   </div>
-  <p id="thrNote" class="note">FLY to enable.</p>
-</section>
-<section>
-  <h2>Attitude</h2>
-  <div class="grid2">
-    <div class="ro"><div class="k">r1 · about X</div><div class="v" id="attR1">--</div><div class="meta" id="attR1b">--</div></div>
-    <div class="ro"><div class="k">r2 · about Y</div><div class="v" id="attR2">--</div><div class="meta" id="attR2b">--</div></div>
+  <div id="view-graphs" class="view graphs" role="tabpanel" hidden>
+    <section class="card graph-bar">
+      <button id="recBtn" class="btn rec" type="button"><i></i><span id="recLabel">Record</span></button>
+      <button id="clearBtn" class="btn" type="button" title="Empty the graphs. Recordings are not affected.">Clear</button>
+      <button id="saveBtn" class="btn" type="button" disabled>Save .xlsx</button>
+      <span id="recStat" class="rec-stat">Not recording</span>
+      <span class="spacer"></span>
+      <span class="caption">Hover a graph to read every graph at that moment</span>
+      <div class="segmented small">
+        <button id="win10" class="seg" type="button">10 s</button>
+        <button id="win30" class="seg" type="button">30 s</button>
+        <button id="win60" class="seg" type="button">60 s</button>
+      </div>
+    </section>
+    <div class="chart-grid">
+      <section class="card"><div class="card-head"><h2 class="retro">Attitude °</h2><div class="legend" id="gAttL"></div></div><div class="plot"><canvas id="gAtt"></canvas></div></section>
+      <section class="card"><div class="card-head"><h2 class="retro">Body rate °/s</h2><div class="legend" id="gRateL"></div></div><div class="plot"><canvas id="gRate"></canvas></div></section>
+      <section class="card"><div class="card-head"><h2 class="retro">Nozzle command °</h2><div class="legend" id="gUL"></div></div><div class="plot"><canvas id="gU"></canvas></div></section>
+      <section class="card"><div class="card-head"><h2 class="retro">Integrals rad·s</h2><div class="legend" id="gIL"></div></div><div class="plot"><canvas id="gI"></canvas></div></section>
+      <section class="card"><div class="card-head"><h2 class="retro">Throttle %</h2><div class="legend" id="gThrL"></div></div><div class="plot"><canvas id="gThr"></canvas></div></section>
+      <section class="card"><div class="card-head"><h2 class="retro">Servo pulse µs</h2><div class="legend" id="gUsL"></div></div><div class="plot"><canvas id="gUs"></canvas></div></section>
+    </div>
   </div>
-  <p id="attNote" class="note">Waiting for IMU.</p>
-</section>
-<section>
-  <h2>Nozzle</h2>
-  <div class="grid2">
-    <div class="ro"><div class="k">X · r1</div><div class="v" id="nozX">--</div><div class="meta" id="nozXus">-- µs</div></div>
-    <div class="ro"><div class="k">Y · r2</div><div class="v" id="nozY">--</div><div class="meta" id="nozYus">-- µs</div></div>
-  </div>
-  <p id="ctlNote" class="note">--</p>
-</section>
-<section><h2>Console</h2><pre id="log"></pre></section>
-<section><details id="raw"><summary>Raw telemetry</summary><pre id="telemetry">waiting for first frame</pre></details></section>
 </main>
+<aside id="inspector" class="inspector waiting" aria-label="Tuning" hidden>
+  <div class="card-head"><h2 class="retro">Tuning</h2><button id="gainsRevert" class="btn" type="button" title="Gains back to the vehicle's defaults">Defaults</button></div>
+  <p id="gainsNote" class="note">Waiting for the vehicle's limits.</p>
+  <div id="gainRows"></div>
+  <div id="trimRows"></div>
+</aside>
+</div>
+</div>
 <script>
 'use strict';
 
@@ -133,12 +340,21 @@ const WS_URL         = 'ws://' + HOST + '/ws';  // path must match cfg::WIFI_WS_
 const RECONNECT_MS   = 1000;
 const STALE_MS       = 1000;  // no telemetry for this long → STALE
 const ACK_TIMEOUT_MS = 2000;
+const SLOW_ACK_MS    = {zero: 5000};  // zero blocks the vehicle ~1.5 s while it averages the IMU
 const LEVEL_MS       = 60;    // a dragged slider sends its newest value at most this often
 const PING_MS        = 250;   // heartbeat; the vehicle disarms after cfg::LINK_TIMEOUT_MS without one
 const CONFIRM_MS     = 3000;  // the second tap of a two-tap button must land within this
 const LOG_LINES      = 200;
+const DEMO_AFTER_MS  = 2500;  // opened from disk: no vehicle by then → demo mode
+// Demo exists only to preview the page from disk. Served by the vehicle, the page never
+// simulates: it always connects, and a missing link shows as NO LINK with controls live.
+const DEMO_ALLOWED   = location.protocol === 'file:';
+
+const params = new URLSearchParams(location.search);
 
 let ws = null, wasOpen = false, nextId = 1, lastFrameMs = 0, lastUptimeMs = null;
+let demoTimer = null;
+const inDemo  = () => demoTimer !== null;
 const pending = new Map();  // command id → {type, resolve, sentMs}
 const levels  = new Map();  // command type → {fields, timer}, see sendLevel()
 
@@ -157,19 +373,23 @@ function log(msg) {
 
 function setLink(cls, text) {
   const el = $('link');
-  el.className = 'meta ' + cls;
+  el.className = 'link ' + cls;
   el.textContent = text;
 }
 
 function connect() {
   ws = new WebSocket(WS_URL);
-  ws.onopen = () => { wasOpen = true; setLink('ok', 'LINK'); log('connected ' + WS_URL); };
+  ws.onopen = () => {
+    wasOpen = true;
+    stopDemo();
+    setLink('ok', 'LINK');
+    log('connected ' + WS_URL);
+  };
   ws.onclose = () => {
     if (wasOpen) log('link lost');
     wasOpen = false;
-    setLink('down', 'NO LINK');
     failPending('link lost');
-    linkDown();
+    if (!inDemo()) { setLink('down', 'NO LINK'); linkDown(); }
     setTimeout(connect, RECONNECT_MS);
   };
   ws.onmessage = ev => {
@@ -187,6 +407,11 @@ function send(type, fields) {
   // vehicle zeroes it.
   if (ZEROES_THROTTLE.has(type)) cancelLevel('throttle');
   return new Promise(resolve => {
+    if (inDemo()) {
+      log(type + ' not sent: demo mode, no vehicle');
+      resolve({ok: false, error: 'demo'});
+      return;
+    }
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       log(type + ' not sent: no link');
       resolve({ok: false, error: 'no link'});
@@ -207,17 +432,18 @@ function failPending(why) {
 // A dragged slider fires input events far faster than the link needs. sendLevel() sends
 // the first value at once, then only the newest value per command type every LEVEL_MS
 // while it keeps changing, and always finishes on the final value.
-function sendLevel(type, fields) {
-  const l = levels.get(type);
+// `key` separates values that share a type but must not replace each other (one per trim axis).
+function sendLevel(type, fields, key = type) {
+  const l = levels.get(key);
   if (l) { l.fields = fields; return; }  // a send is scheduled; it will carry this value
   send(type, fields);
   const entry = {fields: null, timer: null};
   entry.timer = setInterval(() => {
-    if (entry.fields === null) { cancelLevel(type); return; }
+    if (entry.fields === null) { cancelLevel(key); return; }
     send(type, entry.fields);
     entry.fields = null;
   }, LEVEL_MS);
-  levels.set(type, entry);
+  levels.set(key, entry);
 }
 
 function cancelLevel(type) {
@@ -233,12 +459,11 @@ function cancelLevel(type) {
 // Only keys listed in PERSIST are ever saved. The board is the source of truth for
 // everything else. NEVER add:
 //   - throttle or arm state: restoring them could spin a motor when a page opens.
-//   - servo trims, signs, axis mappings: hardware facts that belong in mistral_config.h.
-//     A trim is copied into the config centre; a remembered trim re-sent after that
-//     reflash would apply the offset twice.
-// Map: storage key → command type it is re-sent as. Empty until the firmware accepts
-// live gains, e.g.  gainsPitch: 'gains'
-const PERSIST   = {};
+//   - servo signs, axis mappings: hardware facts that belong in mistral_config.h.
+// Servo trim IS remembered (owner's call, 2026-09-14). Once a trim is copied into the config
+// centre, zero it in the panel, or the remembered trim is added on top of the new centre.
+// Map: storage key → how to re-apply it.
+const PERSIST   = {gains: v => applyGains(v), trim: v => applyTrim(v)};
 const PREFS_KEY = 'mistralPrefs';
 
 let prefs = {};
@@ -254,14 +479,14 @@ function remember(key, fields) {
 function restorePrefs() {
   let n = 0;
   for (const key in PERSIST) {
-    if (prefs[key]) { send(PERSIST[key], prefs[key]); n++; }
+    if (prefs[key]) { PERSIST[key](prefs[key]); n++; }
   }
   if (n) log('re-sent ' + n + ' remembered setting' + (n === 1 ? '' : 's'));
 }
 
 // Page-only preferences: this browser, never sent to the vehicle.
 const UI_KEY = 'mistralUi';
-const ui = {snap: true};
+const ui = {snap: true, tab: 'control', win: 30, gainsOpen: false};
 try { Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY))); } catch (e) {}
 function saveUi() { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch (e) {} }
 
@@ -276,35 +501,40 @@ function showState() {
   const el = $('state');
   el.textContent = s;
   el.className = 'pill ' + s.toLowerCase().replace(' ', '-');
+  ['DISARMED', 'ARMED', 'FLYING'].forEach(k => $('step-' + k).classList.toggle('on', vehicleState === k));
+  $('step-DISARMED').classList.toggle('killed', s === 'KILLED');
 }
 
 function onVehicleState(t) {
   const s = t.state, esc = t.throttle.state;
-  if (vehicleState && vehicleState !== 'DISARMED' && s === 'DISARMED' && !expectDisarm) {
+  if (vehicleState && vehicleState !== 'DISARMED' && s === 'DISARMED' && !expectDisarm && !inDemo()) {
     log('vehicle disarmed itself (link loss)');
   }
-  if (vehicleState === 'FLYING' && s === 'ARMED' && !expectMotorsOff) {
+  if (vehicleState === 'FLYING' && s === 'ARMED' && !expectMotorsOff && !inDemo()) {
     log('vehicle stopped the motors (auto-cut)');
   }
   if (s === 'DISARMED') expectDisarm = false;
   if (s !== 'FLYING') expectMotorsOff = false;
   vehicleState = s;
 
-  setThrottleEnabled(s === 'FLYING' && esc === 'ARMED', Math.round(t.throttle.normalised * 100));
-  $('arm').disabled = s === 'ARMED';
-  $('fly').disabled = s !== 'ARMED';
-  $('disarm').disabled = s === 'DISARMED';
+  setThrottleEnabled(s === 'FLYING' && esc === 'ARMED' && !inDemo(), Math.round(t.throttle.normalised * 100));
+  $('arm').disabled = s === 'ARMED' || inDemo();
+  $('fly').disabled = s !== 'ARMED' || inDemo();
+  $('disarm').disabled = s === 'DISARMED' || inDemo();
+  $('zeroImu').disabled = zeroing || s !== 'DISARMED' || inDemo();
   if (s !== 'DISARMED' && confirmTimers.arm) setConfirm('arm', false);
   if (s !== 'ARMED' && confirmTimers.fly) setConfirm('fly', false);
   if (!confirmTimers.arm) set('arm', s === 'FLYING' ? 'MOTORS OFF' : 'ARM');
 
   set('armNote',
-      s === 'FLYING' ? (esc === 'ARMING'
-                          ? 'FLYING — ESCs held at minimum, ' + Math.ceil(t.throttle.armRemainingMs / 1000) + ' s'
-                          : 'FLYING — throttle live, integrators ' +
-                            (t.ctl && t.ctl.integrating ? 'on.' : 'held at zero (throttle below threshold).'))
-    : s === 'ARMED'  ? 'ARMED — servos live, motors off. Tilt by hand: the nozzle must oppose.'
-    :                  'Props off or vehicle restrained.');
+      inDemo()       ? 'Demo — simulated telemetry. Controls are disabled until the vehicle connects.'
+    : s === 'FLYING' ? (esc === 'ARMING'
+                          ? 'ESCs arming — held at minimum, ' + Math.ceil(t.throttle.armRemainingMs / 1000) + ' s'
+                          : 'Throttle live. Integrators ' +
+                            (t.ctl && t.ctl.integrating ? 'on.' : 'held at zero until the throttle threshold.'))
+    : s === 'ARMED'  ? 'Servos live, motors off. Tilt by hand: the nozzle must oppose.'
+    :                  'Props off or vehicle restrained. ARM (two taps) to go live on the servos.');
+  if (inDemo()) { thr.pct = Math.round(t.throttle.normalised * 100); renderThrottle(); }
   showState();
 }
 
@@ -314,6 +544,7 @@ function linkDown() {
   setThrottleEnabled(false, 0);
   $('arm').disabled = true;
   $('fly').disabled = true;
+  $('zeroImu').disabled = true;
   if (confirmTimers.arm) setConfirm('arm', false);
   if (confirmTimers.fly) setConfirm('fly', false);
 }
@@ -355,7 +586,7 @@ function setThrottleEnabled(on, vehiclePct) {
   thr.el.setAttribute('aria-disabled', String(!on));
   $('thrZero').disabled = !on;
   if (on) { thr.drag = null; thr.pct = vehiclePct; renderThrottle(); } else zeroThrottleUi();
-  set('thrNote', on ? 'Drag up to add throttle.' : 'FLY to enable.');
+  set('thrNote', on ? 'Drag up to add throttle. The green mark is where the integrators switch on.' : 'FLY to enable.');
 }
 
 thr.el.addEventListener('pointerdown', e => {
@@ -435,7 +666,7 @@ $('kill').onclick = () => {
 // Hidden page (app switch, locked phone): disarm now rather than waiting for the link
 // timeout. Pings also stop while hidden, so the vehicle disarms even if this is lost.
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && vehicleState && vehicleState !== 'DISARMED') {
+  if (document.hidden && vehicleState && vehicleState !== 'DISARMED' && !inDemo()) {
     expectDisarm = true;
     zeroThrottleUi();
     send('disarm');
@@ -456,39 +687,860 @@ function showAttitude(a) {
   if (!a) return;
   [['1', a.cf1Deg, a.fu1Deg, a.dr1Dps], ['2', a.cf2Deg, a.fu2Deg, a.dr2Dps]].forEach(([n, cf, fu, dr]) => {
     set('attR' + n, fmtDeg(a.fusion ? fu : cf));
-    set('attR' + n + 'b', 'CF ' + fmtDeg(cf) + ' · Fusion ' + fmtDeg(fu) + ' · ' + dr.toFixed(0) + '°/s');
+    set('attR' + n + 'b', 'CF ' + fmtDeg(cf) + ' · Fu ' + fmtDeg(fu) + ' · ' + dr.toFixed(0) + '°/s');
   });
-  set('attNote', (a.valid ? '' : 'Fusion converging — hold still. ') + 'Controller input: ' +
-      (a.fusion ? 'Fusion' : 'complementary filter') + '. Yaw rate ' + a.yawRateDps.toFixed(0) + '°/s.');
+  set('attSource', 'controller input: ' + (a.fusion ? 'Fusion AHRS' : 'complementary filter'));
+  set('attNote', (a.valid ? '' : 'Fusion converging — hold still. ') + 'Yaw rate ' + a.yawRateDps.toFixed(0) + '°/s (rate only, no heading).' +
+      (a.offset1Dps === undefined ? '' : ' Gyro offset learned ' + a.offset1Dps.toFixed(2) + ' / ' + a.offset2Dps.toFixed(2) + '°/s.'));
 }
 
 function showNozzle(axis, deg, us, sat) {
   set('noz' + axis, fmtDeg(deg));
-  set('noz' + axis + 'us', us + ' µs' + (sat ? '  SAT' : ''));
+  set('noz' + axis + 'us', us + ' µs' + (sat ? ' · SAT' : ''));
   $('noz' + axis + 'us').classList.toggle('sat', sat);
 }
 
 function showControl(c) {
   if (!c) return;
-  set('ctlNote', 'u ' + fmtDeg(c.u1Deg) + ' / ' + fmtDeg(c.u2Deg) +
-      ' · integrals ' + c.ir1.toFixed(3) + ' / ' + c.ir2.toFixed(3) + ' rad·s');
+  set('ctlNote', 'Command u ' + fmtDeg(c.u1Deg) + ' / ' + fmtDeg(c.u2Deg) + ' · integrals ' +
+      c.ir1.toFixed(3) + ' / ' + c.ir2.toFixed(3) + ' rad·s · ' + (c.integrating ? 'integrating' : 'integrators held'));
+  if (Number.isFinite(c.iThrPct)) { $('thrMark').hidden = false; $('thrMark').style.bottom = c.iThrPct + '%'; }
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+function showTab(name) {
+  ['control', 'graphs'].forEach(t => {
+    $('tab-' + t).classList.toggle('on', t === name);
+    $('tab-' + t).setAttribute('aria-selected', String(t === name));
+    $('view-' + t).hidden = t !== name;
+  });
+  ui.tab = name;
+  saveUi();
+  scheduleDraw();
+}
+$('tab-control').onclick = () => showTab('control');
+$('tab-graphs').onclick = () => showTab('graphs');
+
+// ── History (graphs + attitude scope) ────────────────────────────────────────
+// A rolling window of telemetry timed by the vehicle's uptime. The clamp, integral limit and
+// integrate threshold arrive in telemetry, so the page holds no copy of the firmware's config.
+const HISTORY_MS = 60000;
+const hist   = [];  // {ms, state, v: {...}}
+const limits = {clampDeg: null, iLimit: null, iThrPct: null};
+const COLORS = {a: '#007aff', b: '#ff9500', c: '#af52de', armed: '#ff9f0a', flying: '#34c759'};
+const SANS   = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
+
+function recordSample(m) {
+  if (hist.length && m.uptimeMs < hist[hist.length - 1].ms) hist.length = 0;  // vehicle rebooted
+  const a = m.att || {}, c = m.ctl || {};
+  hist.push({ms: m.uptimeMs, state: m.state, v: {
+    r1: a.fusion ? a.fu1Deg : a.cf1Deg, r2: a.fusion ? a.fu2Deg : a.cf2Deg,
+    dr1: a.dr1Dps, dr2: a.dr2Dps, u1: c.u1Deg, u2: c.u2Deg, ir1: c.ir1, ir2: c.ir2,
+    thr: m.throttle.normalised * 100, usX: m.tvc.xUs, usY: m.tvc.yUs,
+  }});
+  while (hist.length > 1 && hist[hist.length - 1].ms - hist[0].ms > HISTORY_MS) hist.shift();
+  ['clampDeg', 'iLimit', 'iThrPct'].forEach(k => { if (Number.isFinite(c[k])) limits[k] = c[k]; });
+  scheduleDraw();
+}
+
+function firstIndexAtOrAfter(ms) {
+  let lo = 0, hi = hist.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (hist[mid].ms < ms) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+
+// Canvases render at no less than 2× their CSS size, so lines and text stay crisp at any zoom.
+function prepCanvas(cv) {
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (!w || !h) return null;
+  const scale = Math.max(2, window.devicePixelRatio || 1);
+  const bw = Math.round(w * scale), bh = Math.round(h * scale);
+  if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+  const x = cv.getContext('2d');
+  x.setTransform(scale, 0, 0, scale, 0, 0);
+  x.clearRect(0, 0, w, h);
+  return {x, w, h};
+}
+
+let drawQueued = false;
+function scheduleDraw() {
+  if (drawQueued) return;
+  drawQueued = true;
+  requestAnimationFrame(() => {
+    drawQueued = false;
+    if (!$('view-graphs').hidden) GRAPHS.forEach(drawGraph);
+    if (!$('view-control').hidden) drawScope();
+  });
+}
+if (window.ResizeObserver) new ResizeObserver(scheduleDraw).observe(document.querySelector('main'));
+
+// ── Attitude scope ───────────────────────────────────────────────────────────
+// Looking down the body axis: attitude (blue dot, with a 1.5 s trail) and the nozzle command
+// (orange ring) on the same degree scale. The controller works when the ring sits opposite the
+// dot. The red circle is the nozzle clamp.
+function drawScope() {
+  const c = prepCanvas($('scope'));
+  if (!c) return;
+  const {x, w, h} = c;
+  const cx = w / 2, cy = h / 2, rad = Math.min(w, h) / 2 - 24;
+  if (rad < 30) return;
+  const clamp = limits.clampDeg || 0;
+  const maxDeg = Math.max(10, Math.ceil(clamp * 1.25 / 5) * 5);
+  const P = (a, b) => {
+    const d = Math.hypot(a, b), k = d > maxDeg ? maxDeg / d : 1;
+    return [cx + b * k / maxDeg * rad, cy - a * k / maxDeg * rad];
+  };
+
+  x.fillStyle = '#f5f5f7';
+  x.beginPath(); x.arc(cx, cy, rad, 0, 2 * Math.PI); x.fill();
+  x.lineWidth = 1;
+  x.strokeStyle = 'rgba(60,60,67,.16)';
+  for (let d = 5; d <= maxDeg; d += 5) { x.beginPath(); x.arc(cx, cy, d / maxDeg * rad, 0, 2 * Math.PI); x.stroke(); }
+  x.beginPath();
+  x.moveTo(cx - rad, cy); x.lineTo(cx + rad, cy);
+  x.moveTo(cx, cy - rad); x.lineTo(cx, cy + rad);
+  x.stroke();
+
+  x.font = '500 11px ' + SANS;
+  x.fillStyle = '#8e8e93';
+  x.textAlign = 'left'; x.textBaseline = 'top';
+  for (let d = 5; d <= maxDeg; d += 5) {
+    const q = d / maxDeg * rad * Math.SQRT1_2;
+    x.fillText(d + '°', cx + q + 3, cy + q + 2);
+  }
+  x.textAlign = 'center'; x.textBaseline = 'bottom'; x.fillText('+r1', cx, cy - rad - 6);
+  x.textAlign = 'left'; x.textBaseline = 'middle'; x.fillText('+r2', cx + rad + 6, cy);
+
+  if (clamp) {
+    x.strokeStyle = 'rgba(255,59,48,.7)';
+    x.lineWidth = 1.5;
+    x.beginPath(); x.arc(cx, cy, Math.min(clamp, maxDeg) / maxDeg * rad, 0, 2 * Math.PI); x.stroke();
+  }
+
+  const last = hist[hist.length - 1];
+  if (!last || !Number.isFinite(last.v.r1)) return;
+  const from = last.ms - 1500;
+  x.lineWidth = 2.5;
+  x.lineCap = 'round';
+  let prev = null;
+  for (let i = firstIndexAtOrAfter(from); i < hist.length; i++) {
+    const s = hist[i], p = P(s.v.r1, s.v.r2);
+    if (prev) {
+      x.strokeStyle = 'rgba(0,122,255,' + (0.05 + 0.45 * (s.ms - from) / 1500).toFixed(3) + ')';
+      x.beginPath(); x.moveTo(prev[0], prev[1]); x.lineTo(p[0], p[1]); x.stroke();
+    }
+    prev = p;
+  }
+  if (Number.isFinite(last.v.u1)) {
+    const [ux, uy] = P(last.v.u1, last.v.u2);
+    x.strokeStyle = COLORS.b; x.lineWidth = 3;
+    x.beginPath(); x.arc(ux, uy, 8, 0, 2 * Math.PI); x.stroke();
+  }
+  const [ax, ay] = P(last.v.r1, last.v.r2);
+  x.fillStyle = COLORS.a; x.strokeStyle = '#fff'; x.lineWidth = 2.5;
+  x.beginPath(); x.arc(ax, ay, 7.5, 0, 2 * Math.PI); x.fill(); x.stroke();
+}
+
+// ── Graphs ───────────────────────────────────────────────────────────────────
+// Axis 1 / X blue, axis 2 / Y orange. Limits are solid red, the integrate threshold solid green.
+// A band under each plot shows the flight state: amber ARMED, green FLYING. Hovering any graph
+// reads every graph at that moment.
+const GRAPHS = [
+  {id: 'gAtt',  series: [['r1', 'r1', COLORS.a], ['r2', 'r2', COLORS.b]], fmt: fmtDeg, span: 5},
+  {id: 'gRate', series: [['dr1', 'dr1', COLORS.a], ['dr2', 'dr2', COLORS.b]], fmt: v => (v >= 0 ? '+' : '') + v.toFixed(0), span: 20},
+  {id: 'gU',    series: [['u1', 'X', COLORS.a], ['u2', 'Y', COLORS.b]], fmt: fmtDeg, span: 2, limit: 'clampDeg', limitLabel: 'clamp'},
+  {id: 'gI',    series: [['ir1', 'ir1', COLORS.a], ['ir2', 'ir2', COLORS.b]], fmt: v => v.toFixed(3), span: 0.05, limit: 'iLimit', limitLabel: 'limit'},
+  {id: 'gThr',  series: [['thr', 'throttle', COLORS.c]], fmt: v => v.toFixed(0) + '%', range: [0, 100], mark: 'iThrPct', markLabel: 'integrators on'},
+  {id: 'gUs',   series: [['usX', 'X', COLORS.a], ['usY', 'Y', COLORS.b]], fmt: v => v.toFixed(0), span: 60, around: true},
+];
+const PLOT = {L: 46, R: 12, T: 8, B: 28};
+let graphWindowMs = 30000;
+let hoverMs = null;
+
+function setWindow(s) {
+  graphWindowMs = s * 1000;
+  [10, 30, 60].forEach(k => $('win' + k).classList.toggle('on', k === s));
+  ui.win = s;
+  saveUi();
+  scheduleDraw();
+}
+[10, 30, 60].forEach(s => { $('win' + s).onclick = () => setWindow(s); });
+
+function niceStep(range, count) {
+  const raw = range / count, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 2.25 ? 2 : f < 3.5 ? 2.5 : f < 7.5 ? 5 : 10) * p;
+}
+
+function yRange(g, i0) {
+  if (g.range) return g.range;
+  let mn = Infinity, mx = -Infinity;
+  for (let i = i0; i < hist.length; i++) {
+    for (const [k] of g.series) {
+      const v = hist[i].v[k];
+      if (Number.isFinite(v)) { if (v < mn) mn = v; if (v > mx) mx = v; }
+    }
+  }
+  if (mn === Infinity) return [-g.span, g.span];
+  if (g.around) {
+    const mid = (mn + mx) / 2, half = Math.max((mx - mn) / 2 * 1.2, g.span);
+    return [mid - half, mid + half];
+  }
+  const lim = g.limit ? limits[g.limit] : null;
+  const m = Math.max(g.span, Number.isFinite(lim) ? lim * 1.2 : 0, Math.abs(mn) * 1.15, Math.abs(mx) * 1.15);
+  return [-m, m];
+}
+
+function drawGraph(g) {
+  const legend = $(g.id + 'L');
+  const last = hist[hist.length - 1];
+  const c = prepCanvas($(g.id));
+  if (!c) return;
+  const {x, w, h} = c;
+  if (!last) { legend.textContent = 'waiting for telemetry'; return; }
+  const pw = w - PLOT.L - PLOT.R, ph = h - PLOT.T - PLOT.B;
+  if (pw < 40 || ph < 30) return;
+
+  const t1 = last.ms, t0 = t1 - graphWindowMs, i0 = firstIndexAtOrAfter(t0);
+  const [lo, hi] = yRange(g, i0);
+  const X = ms => PLOT.L + (ms - t0) / graphWindowMs * pw;
+  const Y = v => PLOT.T + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * ph;
+  const hline = y => { x.beginPath(); x.moveTo(PLOT.L, y); x.lineTo(PLOT.L + pw, y); x.stroke(); };
+
+  // Horizontal grid and value labels.
+  let step = niceStep(hi - lo, Math.max(3, Math.round(ph / 46)));
+  if (Math.floor(hi / step) - Math.ceil(lo / step) < 2) step /= 2;  // at least three gridlines
+  const dec = Math.min(4, (String(+step.toPrecision(6)).split('.')[1] || '').length);
+  x.font = '500 11px ' + SANS;
+  x.textAlign = 'right';
+  x.textBaseline = 'middle';
+  x.lineWidth = 1;
+  for (let k = Math.ceil(lo / step); k * step <= hi + step * 1e-6; k++) {
+    const v = k * step, y = Math.round(Y(v)) + 0.5;
+    x.strokeStyle = k === 0 ? 'rgba(60,60,67,.35)' : 'rgba(60,60,67,.1)';
+    hline(y);
+    x.fillStyle = '#8e8e93';
+    x.fillText((k === 0 ? 0 : v).toFixed(dec), PLOT.L - 8, y);
+  }
+
+  // Time grid and labels.
+  const tStep = [1000, 2000, 5000, 10000, 20000, 30000].find(st => st / graphWindowMs * pw >= 56) || 30000;
+  const nowW = x.measureText('now').width;
+  x.textAlign = 'left';
+  x.textBaseline = 'top';
+  for (let k = 0; k * tStep <= graphWindowMs; k++) {
+    const xx = Math.round(X(t1 - k * tStep)) + 0.5;
+    x.strokeStyle = 'rgba(60,60,67,.07)';
+    x.beginPath(); x.moveTo(xx, PLOT.T); x.lineTo(xx, PLOT.T + ph); x.stroke();
+    const label = k ? '−' + k * tStep / 1000 + ' s' : 'now', tw = x.measureText(label).width;
+    const lx = k ? xx - tw / 2 : PLOT.L + pw - tw;
+    if (k && (lx < PLOT.L - 6 || lx + tw > PLOT.L + pw - nowW - 8)) continue;
+    x.fillStyle = '#8e8e93';
+    x.fillText(label, lx, PLOT.T + ph + 12);
+  }
+
+  // Flight-state band under the plot.
+  const bandY = PLOT.T + ph + 3;
+  x.fillStyle = 'rgba(60,60,67,.08)';
+  x.fillRect(PLOT.L, bandY, pw, 5);
+  for (let i = i0; i < hist.length; i++) {
+    const s = hist[i];
+    if (s.state !== 'ARMED' && s.state !== 'FLYING') continue;
+    const xa = X(s.ms), xb = i + 1 < hist.length ? X(hist[i + 1].ms) : X(t1);
+    x.fillStyle = s.state === 'FLYING' ? COLORS.flying : COLORS.armed;
+    x.fillRect(xa, bandY, Math.max(0.5, xb - xa + 0.3), 5);
+  }
+
+  // Limits (red) and threshold (green) — solid, labelled.
+  const guide = (v, color, label) => {
+    if (!(v > lo && v < hi)) return;
+    const y = Math.round(Y(v)) + 0.5;
+    x.strokeStyle = color; x.lineWidth = 1.25; hline(y);
+    if (!label) return;
+    x.font = '600 10px ' + SANS; x.textAlign = 'left'; x.textBaseline = 'bottom'; x.fillStyle = color;
+    x.fillText(label, PLOT.L + 6, y - 3);
+  };
+  const lim = g.limit ? limits[g.limit] : null;
+  if (Number.isFinite(lim)) { guide(lim, 'rgba(255,59,48,.75)', g.limitLabel); guide(-lim, 'rgba(255,59,48,.75)', ''); }
+  const mark = g.mark ? limits[g.mark] : null;
+  if (Number.isFinite(mark)) guide(mark, 'rgba(36,160,70,.9)', g.markLabel);
+
+  // Series.
+  x.save();
+  x.beginPath(); x.rect(PLOT.L, PLOT.T - 2, pw, ph + 4); x.clip();
+  x.lineWidth = 1.75; x.lineJoin = 'round'; x.lineCap = 'round';
+  for (const [k, , color] of g.series) {
+    x.strokeStyle = color;
+    x.beginPath();
+    let pen = false;
+    for (let i = Math.max(0, i0 - 1); i < hist.length; i++) {
+      const v = hist[i].v[k];
+      if (!Number.isFinite(v)) { pen = false; continue; }
+      if (pen) x.lineTo(X(hist[i].ms), Y(v)); else { x.moveTo(X(hist[i].ms), Y(v)); pen = true; }
+    }
+    x.stroke();
+  }
+
+  // Hover readout, shared by all graphs.
+  let sample = last, when = '';
+  if (hoverMs !== null && hoverMs >= t0 && hoverMs <= t1) {
+    let j = firstIndexAtOrAfter(hoverMs);
+    if (j >= hist.length || (j > 0 && hoverMs - hist[j - 1].ms < hist[j].ms - hoverMs)) j--;
+    sample = hist[j];
+    const hx = Math.round(X(sample.ms)) + 0.5;
+    x.strokeStyle = 'rgba(29,29,31,.4)'; x.lineWidth = 1;
+    x.beginPath(); x.moveTo(hx, PLOT.T); x.lineTo(hx, PLOT.T + ph); x.stroke();
+    for (const [k, , color] of g.series) {
+      const v = sample.v[k];
+      if (!Number.isFinite(v)) continue;
+      x.fillStyle = color; x.strokeStyle = '#fff'; x.lineWidth = 2;
+      x.beginPath(); x.arc(hx, Y(v), 4, 0, 2 * Math.PI); x.fill(); x.stroke();
+    }
+    when = '<span class="when">' + ((sample.ms - t1) / 1000).toFixed(2) + ' s</span>';
+  }
+  x.restore();
+
+  legend.innerHTML = when + g.series.map(([k, label, color]) => {
+    const v = sample.v[k];
+    return '<span class="chip"><i style="background:' + color + '"></i>' + label + ' <b>' + (Number.isFinite(v) ? g.fmt(v) : '--') + '</b></span>';
+  }).join('');
+}
+
+GRAPHS.forEach(g => {
+  const cv = $(g.id);
+  cv.addEventListener('pointermove', e => {
+    const last = hist[hist.length - 1];
+    if (!last) return;
+    const r = cv.getBoundingClientRect(), f = (e.clientX - r.left - PLOT.L) / (r.width - PLOT.L - PLOT.R);
+    hoverMs = f < 0 || f > 1 ? null : last.ms - graphWindowMs + f * graphWindowMs;
+    scheduleDraw();
+  });
+  cv.addEventListener('pointerleave', () => { hoverMs = null; scheduleDraw(); });
+});
+
+// ── Gains inspector ──────────────────────────────────────────────────────────
+// Live LQI gains: a global scale and, per axis, the angle (kth), rate (kq) and integral (ki)
+// terms. The vehicle sends defaults and allowed ranges when the page connects ("config"); the
+// page draws the defaults as tick marks and clamps to the ranges, and the firmware clamps again.
+// Changes apply at once (coalesced while dragging) and are remembered in this browser, which
+// re-applies them after a page reload or a vehicle reboot.
+const GAIN_TERMS = [['kth', 'Angle', 'per rad'], ['kq', 'Rate', 'per rad/s'], ['ki', 'Integral', 'per rad·s']];
+let gainCfg = null, gainShown = null, gainTouchedMs = 0, pendingGains = null;
+
+function gainControls() {  // one entry per control: id, its config spec, get/set on a gains object
+  const out = [{id: 'scale', spec: gainCfg.scale, get: g => g.scale, set: (g, v) => { g.scale = v; }}];
+  ['x', 'y'].forEach(a => GAIN_TERMS.forEach(([k]) => out.push(
+    {id: a + '-' + k, spec: gainCfg[a][k], get: g => g[a][k], set: (g, v) => { g[a][k] = v; }})));
+  return out;
+}
+const gainStep = spec => Math.max(0.001, +((spec.max - spec.min) / 200).toPrecision(1));
+const fmtGain  = v => v.toFixed(3);
+
+function clampGains(g) {
+  const out = {scale: 0, x: {}, y: {}};
+  gainControls().forEach(c => {
+    const v = +c.get(g);
+    c.set(out, Number.isFinite(v) ? Math.min(c.spec.max, Math.max(c.spec.min, v)) : c.spec.def);
+  });
+  return out;
+}
+
+function defaultGains() {
+  const g = {scale: 0, x: {}, y: {}};
+  gainControls().forEach(c => c.set(g, c.spec.def));
+  return g;
+}
+
+function buildGainRows() {
+  const row = (id, label, unit, spec) => {
+    const p = (spec.def - spec.min) / (spec.max - spec.min || 1);
+    const design = spec.design !== undefined && Math.abs(spec.design - spec.def) > 1e-6 ? ' · design ' + fmtGain(spec.design) : '';
+    const attrs = ' min="' + spec.min + '" max="' + spec.max + '" step="' + gainStep(spec) + '"';
+    return '<div class="gain-row" id="row-' + id + '">' +
+      '<label for="rng-' + id + '"><span>' + label + ' <small>' + unit + '</small></span></label>' +
+      '<div class="gain-ctl"><div class="range-wrap"><input id="rng-' + id + '" type="range"' + attrs + '>' +
+      '<span class="tick" style="--p:' + p + '" title="default ' + fmtGain(spec.def) + '"></span></div>' +
+      '<input id="num-' + id + '" class="num" type="number"' + attrs + '></div>' +
+      '<div class="gain-meta">default ' + fmtGain(spec.def) + design + ' · ' + fmtGain(spec.min) + '–' + fmtGain(spec.max) + '</div></div>';
+  };
+  let html = row('scale', 'Global scale', '× every term', gainCfg.scale);
+  [['x', 'X · corrects r1'], ['y', 'Y · corrects r2']].forEach(([a, title]) => {
+    html += '<div class="gain-axis"><h3>' + title + '</h3>' +
+            GAIN_TERMS.map(([k, label, unit]) => row(a + '-' + k, label, unit, gainCfg[a][k])).join('') + '</div>';
+  });
+  $('gainRows').innerHTML = html;
+  gainControls().forEach(c => {
+    const rng = $('rng-' + c.id), num = $('num-' + c.id);
+    rng.addEventListener('input', () => { num.value = fmtGain(+rng.value); onGainEdit(); });
+    num.addEventListener('change', () => {
+      const v = Math.min(c.spec.max, Math.max(c.spec.min, Number.isFinite(+num.value) ? +num.value : c.spec.def));
+      num.value = fmtGain(v);
+      rng.value = v;
+      onGainEdit();
+    });
+  });
+  $('inspector').classList.remove('waiting');
+  set('gainsNote', 'Changes apply immediately and are remembered in this browser. Tick marks show the defaults. ' +
+                   'Integral starts at 0: raise it after reading the bias on the stand, and have it on before free flight.');
+}
+
+function showGains(g) {
+  gainShown = g;
+  gainControls().forEach(c => {
+    const v = c.get(g), rng = $('rng-' + c.id), num = $('num-' + c.id);
+    if (document.activeElement !== num) num.value = fmtGain(v);
+    if (document.activeElement !== rng) rng.value = v;
+    $('row-' + c.id).classList.toggle('modified', Math.abs(v - c.spec.def) > gainStep(c.spec) / 2);
+  });
+}
+
+function onGainEdit() {
+  const g = {scale: 0, x: {}, y: {}};
+  gainControls().forEach(c => c.set(g, +$('num-' + c.id).value));
+  gainTouchedMs = Date.now();
+  applyGains(g);
+}
+
+function applyGains(g) {
+  if (!gainCfg) { pendingGains = g; return; }
+  const c = clampGains(g);
+  remember('gains', c);
+  showGains(c);
+  if (inDemo()) demoGains = c;
+  else sendLevel('gains', c);
+}
+
+$('gainsRevert').onclick = () => {
+  if (!gainCfg) return;
+  gainTouchedMs = Date.now();
+  applyGains(defaultGains());
+  log('gains back to defaults');
+};
+
+function setInspector(open) {
+  $('inspector').hidden = !open;
+  $('gainsToggle').setAttribute('aria-pressed', String(open));
+  ui.gainsOpen = open;
+  saveUi();
+  scheduleDraw();
+}
+$('gainsToggle').onclick = () => setInspector($('inspector').hidden);
+
+// ── Zero IMU ─────────────────────────────────────────────────────────────────
+// DISARMED, vehicle still on the launch spot: the vehicle re-measures its gyro offset and
+// re-levels both estimators to the ground it sits on. It blocks ~1.5 s and refuses if moved.
+let zeroing = false;
+$('zeroImu').onclick = async () => {
+  zeroing = true;
+  $('zeroImu').disabled = true;
+  set('zeroImu', 'Hold still…');
+  log('zeroing IMU — keep the vehicle still');
+  const r = await send('zero');
+  zeroing = false;
+  set('zeroImu', 'Zero IMU');
+  $('zeroImu').disabled = vehicleState !== 'DISARMED' || inDemo();
+  if (r.ok) log('IMU zeroed — attitude re-levelled to this ground');
+};
+
+// ── Servo trim ───────────────────────────────────────────────────────────────
+// Live centre offset per servo in µs, within ±maxUs from the vehicle's config frame (the firmware
+// clamps too). Applies at once, even in flight, and is remembered in this browser like the gains.
+let trimCfg = null, trimShown = {x: 0, y: 0}, trimTouchedMs = 0, pendingTrim = null;
+
+const clampTrim = v => Number.isFinite(v) ? Math.max(-trimCfg.maxUs, Math.min(trimCfg.maxUs, Math.round(v))) : 0;
+
+function trimMeta(a, us) {
+  const c = trimCfg[a], deg = us / c.usPerNozzleDeg;
+  return 'centre ' + c.centreUs + ' → ' + (c.centreUs + us) + ' µs · nozzle ' + (deg < 0 ? '−' : '+') + Math.abs(deg).toFixed(2) + '°';
+}
+
+function buildTrimRows() {
+  const m = trimCfg.maxUs, attrs = ' min="' + -m + '" max="' + m + '" step="1"';
+  const row = a => '<div class="gain-row" id="row-trim-' + a + '">' +
+    '<label for="rng-trim-' + a + '"><span>' + a.toUpperCase() + ' servo <small>µs</small></span></label>' +
+    '<div class="gain-ctl"><div class="range-wrap"><input id="rng-trim-' + a + '" type="range"' + attrs + '>' +
+    '<span class="tick" style="--p:0.5" title="no trim"></span></div>' +
+    '<input id="num-trim-' + a + '" class="num" type="number"' + attrs + '></div>' +
+    '<div class="gain-meta" id="meta-trim-' + a + '"></div></div>';
+  $('trimRows').innerHTML = '<div class="gain-axis"><div class="trim-head"><h3>Servo trim</h3>' +
+    '<button id="trimZero" class="btn" type="button">Zero</button></div>' +
+    '<p class="note">Shifts a servo\'s centre. After copying a centre into mistral_config.h, press Zero.</p>' +
+    row('x') + row('y') + '</div>';
+  ['x', 'y'].forEach(a => {
+    const rng = $('rng-trim-' + a), num = $('num-trim-' + a);
+    rng.addEventListener('input', () => { num.value = rng.value; onTrimEdit(a); });
+    num.addEventListener('change', () => { const v = clampTrim(+num.value); num.value = v; rng.value = v; onTrimEdit(a); });
+  });
+  $('trimZero').onclick = () => { applyTrim({x: 0, y: 0}); log('servo trim zeroed'); };
+}
+
+function showTrim(t) {
+  trimShown = t;
+  ['x', 'y'].forEach(a => {
+    const rng = $('rng-trim-' + a), num = $('num-trim-' + a);
+    if (document.activeElement !== num) num.value = t[a];
+    if (document.activeElement !== rng) rng.value = t[a];
+    $('row-trim-' + a).classList.toggle('modified', t[a] !== 0);
+    set('meta-trim-' + a, trimMeta(a, t[a]));
+  });
+}
+
+function onTrimEdit(a) {
+  const t = Object.assign({}, trimShown);
+  t[a] = +$('num-trim-' + a).value;
+  applyTrim(t, [a]);
+}
+
+// Clamp, remember, show, send. Only the listed axes are sent; each axis coalesces on its own.
+function applyTrim(t, axes = ['x', 'y']) {
+  if (!trimCfg) { pendingTrim = t; return; }
+  const c = {x: clampTrim(+t.x), y: clampTrim(+t.y)};
+  trimTouchedMs = Date.now();
+  remember('trim', c);
+  showTrim(c);
+  if (inDemo()) demoTrim = c;
+  else axes.forEach(a => sendLevel('trim', {axis: a, us: c[a]}, 'trim-' + a));
+}
+
+// ── Recording → .xlsx ────────────────────────────────────────────────────────
+// Record keeps every telemetry frame in memory (50 Hz) until Stop; Save writes an .xlsx with a
+// "Flight" sheet (one row per frame, columns in signal-path order) and an "Info" sheet.
+const REC_MAX_ROWS = 180000;  // an hour at 50 Hz
+const r3 = v => (Number.isFinite(v) ? Math.round(v * 1000) / 1000 : '');
+const r5 = v => (Number.isFinite(v) ? Math.round(v * 100000) / 100000 : '');
+const b01 = v => (v ? 1 : 0);
+const REC_COLUMNS = [
+  ['uptime_ms', m => m.uptimeMs],
+  ['state', m => m.state],
+  ['esc_state', m => m.throttle.state],
+  ['esc_arm_remaining_ms', m => m.throttle.armRemainingMs],
+  ['throttle_pct', m => r3(m.throttle.normalised * 100)],
+  ['differential', m => r3(m.throttle.differential)],
+  ['esc1_us', m => m.throttle.esc1Us],
+  ['esc2_us', m => m.throttle.esc2Us],
+  ['esc_saturated', m => b01(m.throttle.saturated)],
+  ['attitude_valid', m => b01(m.att.valid)],
+  ['controller_input', m => (m.att.fusion ? 'fusion' : 'complementary')],
+  ['cf_r1_deg', m => r3(m.att.cf1Deg)],
+  ['cf_r2_deg', m => r3(m.att.cf2Deg)],
+  ['fusion_r1_deg', m => r3(m.att.fu1Deg)],
+  ['fusion_r2_deg', m => r3(m.att.fu2Deg)],
+  ['dr1_dps', m => r3(m.att.dr1Dps)],
+  ['dr2_dps', m => r3(m.att.dr2Dps)],
+  ['yaw_rate_dps', m => r3(m.att.yawRateDps)],
+  ['u1_deg', m => r3(m.ctl.u1Deg)],
+  ['u2_deg', m => r3(m.ctl.u2Deg)],
+  ['ir1_rad_s', m => r5(m.ctl.ir1)],
+  ['ir2_rad_s', m => r5(m.ctl.ir2)],
+  ['integrating', m => b01(m.ctl.integrating)],
+  ['nozzle_x_deg', m => r3(m.tvc.xDeg)],
+  ['nozzle_y_deg', m => r3(m.tvc.yDeg)],
+  ['servo_x_us', m => m.tvc.xUs],
+  ['servo_y_us', m => m.tvc.yUs],
+  ['trim_x_us', m => m.tvc.xTrimUs],
+  ['trim_y_us', m => m.tvc.yTrimUs],
+  ['servo_x_saturated', m => b01(m.tvc.xSaturated)],
+  ['servo_y_saturated', m => b01(m.tvc.ySaturated)],
+  ['gain_scale', m => r3(m.gains ? m.gains.scale : NaN)],
+  ...['x', 'y'].flatMap(a => GAIN_TERMS.map(([k], i) => [a + '_' + k, m => r5(m.gains ? m.gains[a][i] : NaN)])),
+];
+const rec = {on: false, rows: [], startedAt: null, source: ''};
+let recUiAt = 0;
+
+function fmtDur(s) { return Math.floor(s / 60) + ':' + (s % 60).toFixed(1).padStart(4, '0'); }
+
+function updRecUi() {
+  recUiAt = Date.now();
+  const n = rec.rows.length, secs = n ? (rec.rows[n - 1][0] - rec.rows[0][0]) / 1000 : 0;
+  $('recBtn').classList.toggle('on', rec.on);
+  set('recLabel', rec.on ? 'Stop' : 'Record');
+  $('saveBtn').disabled = rec.on || !n;
+  const demoTag = rec.source === 'demo' ? ' · demo data' : '';
+  set('recStat', rec.on ? 'REC ' + fmtDur(secs) + ' · ' + n + ' rows' + demoTag
+               : n      ? 'Stopped · ' + fmtDur(secs) + ' · ' + n + ' rows' + demoTag
+               :          'Not recording');
+}
+
+function toggleRecord() {
+  if (rec.on) {
+    rec.on = false;
+    log('recording stopped: ' + rec.rows.length + ' rows');
+  } else {
+    rec.rows = [];
+    rec.on = true;
+    rec.startedAt = new Date();
+    rec.source = inDemo() ? 'demo' : 'vehicle';
+    log('recording' + (inDemo() ? ' (demo data)' : ''));
+  }
+  updRecUi();
+}
+
+function recordRow(m) {
+  if (!rec.on) return;
+  rec.rows.push(REC_COLUMNS.map(([, f]) => f(m)));
+  if (rec.rows.length >= REC_MAX_ROWS) { rec.on = false; log('recording stopped: ' + REC_MAX_ROWS + ' row limit'); updRecUi(); }
+  else if (Date.now() - recUiAt > 250) updRecUi();
+}
+
+function saveRecording() {
+  const n = rec.rows.length;
+  if (!n || rec.on) return;
+  const t0 = rec.rows[0][0], secs = (rec.rows[n - 1][0] - t0) / 1000;
+  const flight = [['t_s', ...REC_COLUMNS.map(([name]) => name)]]
+    .concat(rec.rows.map(r => [Math.round(r[0] - t0) / 1000, ...r]));
+  const info = [
+    ['key', 'value'],
+    ['source', rec.source === 'demo' ? 'DEMO — simulated telemetry, not the vehicle' : 'vehicle'],
+    ['started', rec.startedAt.toISOString()],
+    ['rows', n],
+    ['duration_s', secs],
+    ['mean_rate_hz', secs > 0 ? Math.round((n - 1) / secs * 10) / 10 : ''],
+    ['nozzle_clamp_deg', r3(limits.clampDeg)],
+    ['integral_limit_rad_s', r3(limits.iLimit)],
+    ['integrate_min_throttle_pct', r3(limits.iThrPct)],
+  ];
+  const blob = makeXlsx([{name: 'Flight', rows: flight}, {name: 'Info', rows: info}]);
+  const d = rec.startedAt, z = v => String(v).padStart(2, '0');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'mistral-' + d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '-' +
+               z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds()) + (rec.source === 'demo' ? '-demo' : '') + '.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  log('saved ' + a.download);
+}
+$('recBtn').onclick = toggleRecord;
+// Clear empties the plotted history only; a recording in progress or awaiting Save is untouched.
+$('clearBtn').onclick = () => {
+  hist.length = 0;
+  hoverMs = null;
+  scheduleDraw();
+  log('graphs cleared');
+};
+$('saveBtn').onclick = saveRecording;
+
+/* xlsx:begin — minimal .xlsx writer: SpreadsheetML parts in an uncompressed zip. No library. */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function zipStore(files) {  // [{name, data: Uint8Array}] → Blob, stored (no compression)
+  const enc = new TextEncoder(), parts = [], central = [];
+  const u16 = v => [v & 255, (v >>> 8) & 255];
+  const u32 = v => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+  let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), crc = crc32(f.data), size = f.data.length;
+    const head = [...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(size), ...u32(size), ...u16(name.length)];
+    const local = new Uint8Array([...u32(0x04034b50), ...head, ...u16(0)]);
+    parts.push(local, name, f.data);
+    central.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...head, ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset)]), name);
+    offset += local.length + name.length + size;
+  }
+  const cdSize = central.reduce((s, p) => s + p.length, 0);
+  const end = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(cdSize), ...u32(offset), ...u16(0)]);
+  return new Blob([...parts, ...central, end], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+
+function xmlEscape(s) { return String(s).replace(/[<>&"]/g, ch => ({'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'}[ch])); }
+
+function colName(i) {
+  let s = '';
+  for (i++; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + (i - 1) % 26) + s;
+  return s;
+}
+
+function sheetXml(rows) {  // first row is a bold, frozen header
+  const out = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">',
+    '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>',
+    '<sheetData>'];
+  rows.forEach((row, r) => {
+    const style = r === 0 ? ' s="1"' : '';
+    let cells = '';
+    row.forEach((v, c) => {
+      const ref = colName(c) + (r + 1);
+      if (typeof v === 'number' && Number.isFinite(v)) cells += '<c r="' + ref + '"' + style + '><v>' + v + '</v></c>';
+      else if (v !== '' && v !== null && v !== undefined) cells += '<c r="' + ref + '"' + style + ' t="inlineStr"><is><t>' + xmlEscape(v) + '</t></is></c>';
+    });
+    out.push('<row r="' + (r + 1) + '">' + cells + '</row>');
+  });
+  out.push('</sheetData></worksheet>');
+  return out.join('');
+}
+
+function makeXlsx(sheets) {  // [{name, rows}] → Blob
+  const X = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const NS = 'http://schemas.openxmlformats.org/';
+  const files = [
+    ['[Content_Types].xml', X + '<Types xmlns="' + NS + 'package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+      sheets.map((s, i) => '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join('') +
+      '</Types>'],
+    ['_rels/.rels', X + '<Relationships xmlns="' + NS + 'package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="' + NS + 'officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ['xl/workbook.xml', X + '<workbook xmlns="' + NS + 'spreadsheetml/2006/main" xmlns:r="' + NS + 'officeDocument/2006/relationships"><sheets>' +
+      sheets.map((s, i) => '<sheet name="' + xmlEscape(s.name) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join('') +
+      '</sheets></workbook>'],
+    ['xl/_rels/workbook.xml.rels', X + '<Relationships xmlns="' + NS + 'package/2006/relationships">' +
+      sheets.map((s, i) => '<Relationship Id="rId' + (i + 1) + '" Type="' + NS + 'officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>').join('') +
+      '<Relationship Id="rId' + (sheets.length + 1) + '" Type="' + NS + 'officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+    ['xl/styles.xml', X + '<styleSheet xmlns="' + NS + 'spreadsheetml/2006/main">' +
+      '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
+      '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>' +
+      '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>' +
+      '</styleSheet>'],
+    ...sheets.map((s, i) => ['xl/worksheets/sheet' + (i + 1) + '.xml', sheetXml(s.rows)]),
+  ];
+  const enc = new TextEncoder();
+  return zipStore(files.map(([name, xml]) => ({name, data: enc.encode(xml)})));
+}
+/* xlsx:end */
+
+// ── Demo mode ────────────────────────────────────────────────────────────────
+// No vehicle on this network: simulated 50 Hz telemetry so the page can be seen with the ESP
+// off. A 44 s cycle — disarmed, armed with hand tilts, flying with a throttle ramp past the
+// integrator threshold — driven through the same u = −K·x · gain law as the firmware. Numbers
+// below only make the simulation look right; nothing reads them for control. Commands are
+// never sent.
+const DEMO = {hz: 50, cycleS: 44, clampDeg: 8.594, iLimit: 0.4, iThrPct: 50, K: [1.13552229, 0.28421317, 0.29383259], gain: 0.3};
+const demoStartS = Number(params.get('demo')) > 0 ? Number(params.get('demo')) : 60;
+let demoIr = [0, 0];
+let demoGains = null;  // set from the Tuning panel while in demo mode
+let demoTrim  = {x: 0, y: 0};
+
+// Mirrors the firmware's config frame: solved K, integral off at boot, ranges 0.5–1.5× / 0.5–2× / 0–1.5×.
+function demoGainConfig() {
+  const axis = () => ({kth: {design: DEMO.K[0], def: DEMO.K[0], min: DEMO.K[0] * 0.5, max: DEMO.K[0] * 1.5},
+                       kq:  {design: DEMO.K[1], def: DEMO.K[1], min: DEMO.K[1] * 0.5, max: DEMO.K[1] * 2},
+                       ki:  {design: DEMO.K[2], def: 0, min: 0, max: DEMO.K[2] * 1.5}});
+  return {type: 'config', gains: {scale: {def: DEMO.gain, min: 0, max: 1}, x: axis(), y: axis()},
+          trim: {maxUs: 200, x: {centreUs: 1626, usPerNozzleDeg: 38.4}, y: {centreUs: 1584, usPerNozzleDeg: -51.2}}};
+}
+const demoDefaults = () => ({scale: DEMO.gain, x: {kth: DEMO.K[0], kq: DEMO.K[1], ki: 0}, y: {kth: DEMO.K[0], kq: DEMO.K[1], ki: 0}});
+
+function demoFrame(t) {
+  const c = t % DEMO.cycleS, R = Math.PI / 180, dt = 1 / DEMO.hz;
+  const state = c < 6 ? 'DISARMED' : c < 16 ? 'ARMED' : c < 40 ? 'FLYING' : 'DISARMED';
+  const flyT = c - 16;
+  const esc = state !== 'FLYING' ? 'DISARMED' : flyT < 3 ? 'ARMING' : 'ARMED';
+  const thr = esc === 'ARMED' ? Math.min(0.62, (flyT - 3) * 0.08) : 0;
+  const amp = state === 'ARMED' ? 1 : state === 'FLYING' ? 0.35 : 0.04;
+  const bias = state === 'FLYING' ? 0.8 : 0;
+  const noise = () => (Math.random() - 0.5) * 0.12;
+  const r = [bias + amp * (7 * Math.sin(1.6 * t) + 2 * Math.sin(4.3 * t)) + noise(),
+             amp * (5 * Math.sin(1.1 * t + 1) + 1.5 * Math.sin(3.7 * t)) + noise()];
+  const dr = [amp * (11.2 * Math.cos(1.6 * t) + 8.6 * Math.cos(4.3 * t)) + noise() * 20,
+              amp * (5.5 * Math.cos(1.1 * t + 1) + 5.55 * Math.cos(3.7 * t)) + noise() * 20];
+  const g = demoGains || demoDefaults(), axes = [g.x, g.y];
+  const integrating = esc === 'ARMED' && thr * 100 >= DEMO.iThrPct;
+  demoIr = demoIr.map((v, i) => (integrating && axes[i].ki > 0 ? Math.max(-DEMO.iLimit, Math.min(DEMO.iLimit, v + r[i] * R * dt)) : 0));
+  const u = r.map((v, i) => {
+    if (state === 'DISARMED') return 0;
+    const raw = -g.scale * (axes[i].kth * v * R + axes[i].kq * dr[i] * R + axes[i].ki * demoIr[i]);
+    return Math.max(-DEMO.clampDeg * R, Math.min(DEMO.clampDeg * R, raw)) / R;
+  });
+  return {
+    type: 'telemetry', uptimeMs: Math.round(t * 1000), state,
+    throttle: {state: esc, armRemainingMs: esc === 'ARMING' ? Math.round((3 - flyT) * 1000) : 0, normalised: thr, differential: 0,
+               esc1Us: 1000 + Math.round(thr * 1000), esc2Us: 1000 + Math.round(thr * 1000), saturated: false},
+    tvc: {xDeg: u[0], yDeg: u[1], xUs: Math.round(1626 + demoTrim.x + u[0] * 3 * 12.8), yUs: Math.round(1584 + demoTrim.y - u[1] * 4 * 12.8),
+          xTrimUs: demoTrim.x, yTrimUs: demoTrim.y, xSaturated: false, ySaturated: false},
+    att: {cf1Deg: r[0] + 0.15 * Math.sin(0.7 * t), cf2Deg: r[1] - 0.1, fu1Deg: r[0], fu2Deg: r[1], dr1Dps: dr[0], dr2Dps: dr[1],
+          yawRateDps: noise() * 10, fusion: true, valid: true},
+    ctl: {u1Deg: u[0], u2Deg: u[1], ir1: demoIr[0], ir2: demoIr[1], integrating,
+          clampDeg: DEMO.clampDeg, iLimit: DEMO.iLimit, iThrPct: DEMO.iThrPct},
+    gains: {scale: g.scale, x: [g.x.kth, g.x.kq, g.x.ki], y: [g.y.kth, g.y.kq, g.y.ki]},
+  };
+}
+
+function startDemo() {
+  if (inDemo() || !DEMO_ALLOWED) return;
+  setLink('demo', 'DEMO');
+  log('No vehicle on this network — demo mode: simulated telemetry, controls disabled.');
+  hist.length = 0;
+  vehicleState = null;
+  lastUptimeMs = null;
+  demoIr = [0, 0];
+  demoGains = null;
+  demoTrim  = {x: 0, y: 0};
+  HANDLERS.config(demoGainConfig());
+  let t = Math.max(0, demoStartS - HISTORY_MS / 1000);
+  for (; t < demoStartS; t += 1 / DEMO.hz) recordSample(demoFrame(t));  // fill the graphs at once
+  demoTimer = setInterval(() => { HANDLERS.telemetry(demoFrame(t)); t += 1 / DEMO.hz; }, 1000 / DEMO.hz);
+}
+
+function stopDemo() {
+  if (!inDemo()) return;
+  clearInterval(demoTimer);
+  demoTimer = null;
+  demoGains = null;
+  demoTrim  = {x: 0, y: 0};
+  if (rec.on) toggleRecord();
+  hist.length = 0;
+  vehicleState = null;
+  lastUptimeMs = null;
+  log('Vehicle connected — demo stopped.');
 }
 
 // ── Routing — one handler per frame type ─────────────────────────────────────
 const HANDLERS = {
+  config(m) {
+    if (m.gains) {
+      gainCfg = m.gains;
+      buildGainRows();
+      showGains(gainShown ? clampGains(gainShown) : defaultGains());
+      if (pendingGains) { const g = pendingGains; pendingGains = null; applyGains(g); }
+    }
+    if (m.trim) {
+      trimCfg = m.trim;
+      buildTrimRows();
+      showTrim({x: clampTrim(trimShown.x), y: clampTrim(trimShown.y)});
+      if (pendingTrim) { const t = pendingTrim; pendingTrim = null; applyTrim(t); }
+    }
+  },
   telemetry(m) {
     lastFrameMs = Date.now();
     if (lastUptimeMs === null || m.uptimeMs < lastUptimeMs) restorePrefs();
     lastUptimeMs = m.uptimeMs;
     onVehicleState(m);
-    set('uptime', fmtUptime(m.uptimeMs));
+    set('uptime', 'up ' + fmtUptime(m.uptimeMs));
     set('thrVeh', Math.round(m.throttle.normalised * 100) + '%');
-    set('escUs', m.throttle.esc1Us + ' / ' + m.throttle.esc2Us);
+    set('escUs', m.throttle.esc1Us + ' / ' + m.throttle.esc2Us + ' µs');
     showNozzle('X', m.tvc.xDeg, m.tvc.xUs, m.tvc.xSaturated);
     showNozzle('Y', m.tvc.yDeg, m.tvc.yUs, m.tvc.ySaturated);
     showAttitude(m.att);
     showControl(m.ctl);
-    if ($('raw').open) set('telemetry', JSON.stringify(m, null, 1));
+    recordSample(m);
+    recordRow(m);
+    // Show the gains the vehicle reports — unless this page changed them in the last 1.5 s.
+    if (gainCfg && m.gains && Date.now() - gainTouchedMs > 1500) {
+      const axis = a => ({kth: a[0], kq: a[1], ki: a[2]});
+      const g = {scale: m.gains.scale, x: axis(m.gains.x), y: axis(m.gains.y)};
+      if (JSON.stringify(g) !== JSON.stringify(gainShown)) showGains(g);
+    }
+    // Same for trim.
+    if (trimCfg && Date.now() - trimTouchedMs > 1500 && (m.tvc.xTrimUs !== trimShown.x || m.tvc.yTrimUs !== trimShown.y)) {
+      showTrim({x: m.tvc.xTrimUs, y: m.tvc.yTrimUs});
+    }
   },
   ack(m) {
     const p = pending.get(m.id);
@@ -504,13 +1556,13 @@ function unhandled(m) { log('unhandled frame type: ' + m.type); }
 setInterval(() => {
   const now = Date.now();
   pending.forEach((p, id) => {
-    if (now - p.sentMs > ACK_TIMEOUT_MS) {
+    if (now - p.sentMs > (SLOW_ACK_MS[p.type] || ACK_TIMEOUT_MS)) {
       pending.delete(id);
       log(p.type + ' timed out');
       p.resolve({ok: false, error: 'timeout'});
     }
   });
-  if (ws && ws.readyState === WebSocket.OPEN) {
+  if (!inDemo() && ws && ws.readyState === WebSocket.OPEN) {
     if (!document.hidden) ws.send('{"type":"ping"}');
     const stale = now - lastFrameMs > STALE_MS;
     setLink(stale ? 'stale' : 'ok', stale ? 'STALE' : 'LINK');
@@ -519,9 +1571,17 @@ setInterval(() => {
 }, PING_MS);
 
 // Bench testing from the browser console, e.g.  mistral.send('trim', {axis: 'x', us: 10})
-window.mistral = {send, sendLevel, remember};
+window.mistral = {send, sendLevel, remember, makeXlsx};
 renderThrottle();
-connect();
+setWindow([10, 30, 60].includes(ui.win) ? ui.win : 30);
+setInspector(params.has('gains') || ui.gainsOpen === true);
+showTab(location.hash === '#graphs' || (location.hash !== '#control' && ui.tab === 'graphs') ? 'graphs' : 'control');
+updRecUi();
+if (DEMO_ALLOWED && params.has('demo')) startDemo();
+else {
+  connect();
+  if (DEMO_ALLOWED) setTimeout(() => { if (!wasOpen) startDemo(); }, DEMO_AFTER_MS);
+}
 </script>
 </body>
 </html>

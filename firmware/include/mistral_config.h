@@ -42,6 +42,10 @@ constexpr uint8_t  IMU_ACCEL_RANGE_G  = 8;
 constexpr uint32_t IMU_SETTLE_MS      = 1000;  // after configuring, before the bias average
 constexpr uint16_t IMU_BIAS_SAMPLES   = 400;   // boot average — vehicle upright and still
 constexpr uint8_t  IMU_BIAS_SAMPLE_MS = 3;
+// Zero IMU (ground station, DISARMED only) re-runs that average and refuses if the vehicle moves:
+// any gyro axis spanning more than this, max − min over the samples. UNTUNED — far above the
+// chip's noise behind the 50 Hz UI filter, far below a bump.
+constexpr float    IMU_STILL_MAX_SPREAD_DPS = 2.0f;
 
 // Filter the gyro at the SENSOR, never in software: a software LPF adds phase lag inside the
 // loop, which the reference identifies as the cause of instability. On-chip UI filter
@@ -61,6 +65,12 @@ constexpr float COMP_FILTER_A              = 0.98f;  // bench sketch, ~0.49 s ti
 constexpr float FUSION_GAIN                = 0.5f;
 constexpr float FUSION_ACCEL_REJECTION_DEG = 10.0f;
 constexpr float FUSION_REJECTION_TIMEOUT_S = 1.0f;
+// Run-time gyro offset tracking, Fusion's FusionBias (owner's call, 2026-09-14). The offset measured
+// at calibration drifts as the IMU warms, and Fusion at gain 0.5 holds ~2° of tilt per 1 °/s of it
+// (seen after a flight: ≈ −0.46 °/s on both axes). Learns only after every axis has stayed under
+// the threshold for the period, and never while FLYING. Fusion's default values.
+constexpr float FUSION_BIAS_STILL_DPS = 3.0f;
+constexpr float FUSION_BIAS_STILL_S   = 3.0f;
 
 // ─────────────────────── On-board OLED (SSD1306) ────────────────────────────
 constexpr uint8_t OLED_SDA  = 17;
@@ -181,6 +191,12 @@ static_assert(SERVO_X_CAL.minUs >= SERVO_HARD_MIN_US && SERVO_X_CAL.maxUs <= SER
 static_assert(SERVO_Y_CAL.minUs >= SERVO_HARD_MIN_US && SERVO_Y_CAL.maxUs <= SERVO_HARD_MAX_US,
               "servo Y backstop outside SERVO_HARD_MIN_US..SERVO_HARD_MAX_US");
 
+// Live trim from the ground station: µs added to a servo's centre, clamped in tvc::setTrim (owner's
+// call, 2026-09-14; widened from ±100). ±200 µs is X ±5.2° / Y ±3.9° of nozzle. At full trim the clamp
+// swing (X ±330, Y ±440 µs) runs into the ±500 µs backstop on the trimmed side, leaving X 7.8° /
+// Y 5.9° of nozzle that way — flagged as saturation, still safe.
+constexpr int16_t TVC_TRIM_MAX_US = 200;
+
 // ──────────────────────── Translation estimate ──────────────────────────────
 // Low-pass on the range term, which scales the whole velocity estimate:
 //   y = α·y + (1 − α)·x
@@ -202,13 +218,25 @@ constexpr float   LQR_K[LQR_INPUTS][LQR_STATES] = {
     {0.0f, 1.13552229f, 0.0f, 0.28421317f, 0.0f, 0.29383259f},
 };
 
-// Global safety scale on u — the bench sketch's value. Do NOT raise above 0.3 without the
-// user's explicit say-so.
-constexpr float LQR_GAIN_SCALE = 0.3f;
+// Global scale on u at boot — the bench sketch's value. Live-adjustable from the ground station
+// within 0..LQR_GAIN_SCALE_MAX (owner's call, 2026-09-14).
+constexpr float LQR_GAIN_SCALE     = 0.3f;
+constexpr float LQR_GAIN_SCALE_MAX = 1.0f;  // 1.0 = the LQI exactly as solved
 
 // Integral clamp, rad·s — the reference's RX_INTEGRAL_MAX. No leak: an earlier leak treated a
 // bench artifact (integrals winding while the loop is open) as a tuning problem.
 constexpr float LQR_I_LIMIT = 0.40f;
+
+// Live tuning bounds for the ground station's Tuning panel, as multiples of the solved LQR_K.
+// lqr::setGains clamps every received gain to these; the page's sliders are only a convenience.
+constexpr float LQR_KTH_RANGE[2] = {0.5f, 1.5f};  // angle term
+constexpr float LQR_KQ_RANGE[2]  = {0.5f, 2.0f};  // rate term — more damping is the safer direction
+constexpr float LQR_KI_RANGE[2]  = {0.0f, 1.5f};  // integral term — may be switched off entirely
+
+// Integral action is OFF at boot (owner's call, 2026-09-14). Tune angle and rate on the stand,
+// read the steady mean nozzle command (the bias), then raise the integral gain live. It must be
+// on before free flight: PD alone leaves a steady tilt under any CG or thrust-line offset.
+constexpr float LQR_KI_BOOT_FACTOR = 0.0f;  // × the solved integral gain
 
 // Integrators run only in FLYING with the commanded throttle at or above this. Below it the
 // vehicle is still on the pad and can't rotate, so the loop is open and they would wind up
@@ -233,7 +261,10 @@ constexpr char     WIFI_WS_PATH[]     = "/ws";
 // Network work runs on core 0; the control loop runs on core 1. Must match
 // -D CONFIG_ASYNC_TCP_RUNNING_CORE in platformio.ini.
 constexpr uint8_t  WIFI_CORE    = 0;
-constexpr uint16_t TELEMETRY_HZ = 10;  // push rate — not the 100 Hz loop rate
+// Telemetry push rate. 50 Hz (owner's call, 2026-09-14) — above the spec's 10–20 Hz so the
+// graphs and recordings show servo and rate dynamics; half the 100 Hz loop. Serialising and
+// sending run on core 0, so the control loop is unaffected.
+constexpr uint16_t TELEMETRY_HZ = 50;
 // Link loss: the ground page pings every 250 ms. With no frame from any client for this
 // long, loop() disarms, so a dropped phone or a locked screen can't leave motors running.
 constexpr uint32_t LINK_TIMEOUT_MS = 1000;

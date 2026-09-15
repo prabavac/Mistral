@@ -13,6 +13,10 @@
 // Rates are the bias-corrected gyro, unfiltered: software filtering in the control path
 // costs phase margin.
 //
+// Gyro offset: imu removes the bias measured at calibration. What drifts after that (the IMU
+// warming up) is tracked here by Fusion's FusionBias while the vehicle sits still, and removed
+// before both estimators — Fusion at gain 0.5 would otherwise hold ~2° of tilt per 1 °/s.
+//
 // Yaw is RATE ONLY. There is no magnetometer on this build, so absolute heading is
 // unobservable — do not estimate or control a yaw angle.
 #pragma once
@@ -31,15 +35,18 @@ struct Estimate {
     float  yawRate;   // rad/s — about body Z
     Angles comp;      // complementary filter, always computed
     Angles fusion;    // Fusion AHRS, always computed
+    float  gyroOffset1Dps, gyroOffset2Dps;  // run-time tracked gyro offset about body X / Y, deg/s
     bool   valid;     // false until init() ran and Fusion's startup has converged and been zeroed
 };
 
-// Seed both estimators from the IMU's boot calibration (accelMean_g is the gravity
-// reference). Call once in setup(), after imu::init() succeeded.
+// Seed both estimators from the IMU's calibration (accelMean_g is the gravity reference) and
+// reset the gyro offset tracker. Call in setup() after imu::init() succeeded, and again after
+// imu::calibrate() to re-zero on the ground. valid stays false until Fusion has re-converged.
 void init(const imu::Vec3& accelMean_g);
 
 // One estimator step. Call once per control tick; dt_s in seconds. An invalid reading
-// holds the previous estimate.
-Estimate update(const imu::Reading& reading, float dt_s);
+// holds the previous estimate. learnGyroOffset lets the offset tracker learn from still periods
+// (pass false while FLYING); the offset learned so far is removed either way.
+Estimate update(const imu::Reading& reading, float dt_s, bool learnGyroOffset);
 
 }  // namespace attitude

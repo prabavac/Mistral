@@ -88,6 +88,13 @@ void handleCommand(const uint8_t* data, size_t len) {
         commands.throttle = value;
         portEXIT_CRITICAL(&lock);
         queueAck(id, true, nullptr);
+    } else if (strcmp(type, "zero") == 0) {
+        // Not setEvent: re-zeroing must never touch the held throttle. The loop refuses it
+        // unless DISARMED.
+        portENTER_CRITICAL(&lock);
+        commands.zero   = true;
+        commands.zeroId = id;
+        portEXIT_CRITICAL(&lock);
     } else if (strcmp(type, "trim") == 0) {
         const char* axis = doc["axis"] | "";
         JsonVariant us   = doc["us"];
@@ -101,13 +108,82 @@ void handleCommand(const uint8_t* data, size_t len) {
         (x ? commands.trimXUs : commands.trimYUs) = us.as<int16_t>();
         portEXIT_CRITICAL(&lock);
         queueAck(id, true, nullptr);
+    } else if (strcmp(type, "gains") == 0) {
+        const auto isNum  = [](JsonVariantConst v) { return v.is<float>() || v.is<int>(); };
+        const auto axisOk = [&](JsonObjectConst a) {
+            return !a.isNull() && isNum(a["kth"]) && isNum(a["kq"]) && isNum(a["ki"]);
+        };
+        const auto axis = [](JsonObjectConst a) {
+            return lqr::AxisGains{a["kth"].as<float>(), a["kq"].as<float>(), a["ki"].as<float>()};
+        };
+        const JsonVariantConst scale = doc["scale"];
+        const JsonObjectConst  gx    = doc["x"].as<JsonObjectConst>();
+        const JsonObjectConst  gy    = doc["y"].as<JsonObjectConst>();
+        if (!isNum(scale) || !axisOk(gx) || !axisOk(gy)) {
+            queueAck(id, false, "gains needs scale and x/y {kth, kq, ki}");
+            return;
+        }
+        const lqr::Gains g{scale.as<float>(), axis(gx), axis(gy)};
+        portENTER_CRITICAL(&lock);
+        commands.gains = g;
+        commands.gainsSeq++;
+        portEXIT_CRITICAL(&lock);
+        queueAck(id, true, nullptr);
     } else {
         queueAck(id, false, "unknown type");
     }
 }
 
-void onWsEvent(AsyncWebSocket*, AsyncWebSocketClient*, AwsEventType type, void* arg,
+// Defaults and allowed ranges for the page's Tuning panel, sent once to each new client.
+void sendConfig(AsyncWebSocketClient* client) {
+    JsonDocument doc;
+    doc["type"] = "config";
+    JsonObject       g     = doc["gains"].to<JsonObject>();
+    const lqr::Gains boot  = lqr::bootGains();
+    JsonObject       scale = g["scale"].to<JsonObject>();
+    scale["def"]           = boot.scale;
+    scale["min"]           = 0.0f;
+    scale["max"]           = cfg::LQR_GAIN_SCALE_MAX;
+    const lqr::AxisGains def[2] = {boot.x, boot.y};
+    for (uint8_t axis = 0; axis < 2; axis++) {
+        const lqr::AxisGains d = lqr::designGains(axis);
+        const struct {
+            const char*  name;
+            float        design, def;
+            const float* range;
+        } terms[3] = {{"kth", d.kth, def[axis].kth, cfg::LQR_KTH_RANGE},
+                      {"kq", d.kq, def[axis].kq, cfg::LQR_KQ_RANGE},
+                      {"ki", d.ki, def[axis].ki, cfg::LQR_KI_RANGE}};
+        JsonObject a = g[axis == 0 ? "x" : "y"].to<JsonObject>();
+        for (const auto& t : terms) {
+            JsonObject o = a[t.name].to<JsonObject>();
+            o["design"]  = t.design;
+            o["def"]     = t.def;
+            o["min"]     = t.design * t.range[0];
+            o["max"]     = t.design * t.range[1];
+        }
+    }
+    // Servo trim: the firmware's limit, plus what the page needs to show a trim as a centre pulse
+    // and as nozzle degrees.
+    JsonObject trim = doc["trim"].to<JsonObject>();
+    trim["maxUs"]   = cfg::TVC_TRIM_MAX_US;
+    const cfg::ServoCal* cals[2] = {&cfg::SERVO_X_CAL, &cfg::SERVO_Y_CAL};
+    for (uint8_t axis = 0; axis < 2; axis++) {
+        JsonObject a        = trim[axis == 0 ? "x" : "y"].to<JsonObject>();
+        a["centreUs"]       = cals[axis]->centreUs;
+        a["usPerNozzleDeg"] = cals[axis]->usPerServoDeg * cals[axis]->gearRatio * cals[axis]->dir;
+    }
+    char         buf[1024];
+    const size_t n = serializeJson(doc, buf, sizeof buf);
+    client->text(buf, n);
+}
+
+void onWsEvent(AsyncWebSocket*, AsyncWebSocketClient* client, AwsEventType type, void* arg,
                uint8_t* data, size_t len) {
+    if (type == WS_EVT_CONNECT) {
+        sendConfig(client);
+        return;
+    }
     if (type != WS_EVT_DATA) return;
     const auto* info = static_cast<AwsFrameInfo*>(arg);
     // Commands are small: accept only complete, single-frame text messages.
@@ -125,7 +201,9 @@ const char* stateName(throttle::State s) {
 }
 
 void sendJson(const JsonDocument& doc) {
-    char         buf[768];
+    // Static, not on the stack: a telemetry frame is up to ~850 bytes, and only the publisher
+    // task sends, so one buffer is never shared.
+    static char  buf[1536];
     const size_t n = serializeJson(doc, buf, sizeof buf);
     ws.textAll(buf, n);
 }
@@ -168,6 +246,8 @@ void sendTelemetry() {
     att["dr1Dps"]       = t.att.dr1 * R2D;
     att["dr2Dps"]       = t.att.dr2 * R2D;
     att["yawRateDps"]   = t.att.yawRate * R2D;
+    att["offset1Dps"]   = t.att.gyroOffset1Dps;
+    att["offset2Dps"]   = t.att.gyroOffset2Dps;
     att["fusion"]       = cfg::ATTITUDE_USE_FUSION;
     att["valid"]        = t.att.valid;
 
@@ -177,6 +257,20 @@ void sendTelemetry() {
     ctl["ir1"]     = t.ctl.ir1;
     ctl["ir2"]         = t.ctl.ir2;
     ctl["integrating"] = t.integrating;
+    // Static limits, so the page draws them without holding its own copy of the config.
+    ctl["clampDeg"] = cfg::TVC_CLAMP_RAD * R2D;
+    ctl["iLimit"]   = cfg::LQR_I_LIMIT;
+    ctl["iThrPct"]  = cfg::LQR_INTEGRATE_MIN_THROTTLE * 100.0f;
+
+    JsonObject gains = doc["gains"].to<JsonObject>();
+    gains["scale"]   = t.gains.scale;
+    const lqr::AxisGains axes[2] = {t.gains.x, t.gains.y};
+    for (uint8_t i = 0; i < 2; i++) {
+        JsonArray a = gains[i == 0 ? "x" : "y"].to<JsonArray>();
+        a.add(axes[i].kth);
+        a.add(axes[i].kq);
+        a.add(axes[i].ki);
+    }
 
     sendJson(doc);
 }
@@ -198,6 +292,10 @@ void publisherTask(void*) {
         const TickType_t elapsed = xTaskGetTickCount() - last;
         if (elapsed >= period) {
             last = xTaskGetTickCount();
+            // textAll queues per client, and a client whose queue is full just misses this frame
+            // (ESPAsyncWebServer discards; it does not close the client). Don't gate on every
+            // client being writable: one stalled socket — an old tab, a reload — would freeze
+            // telemetry for everyone until TCP timed it out.
             if (ws.count() > 0) sendTelemetry();
             ws.cleanupClients();
             continue;
@@ -228,7 +326,7 @@ bool wifi_link::init() {
     });
     server.begin();
 
-    xTaskCreatePinnedToCore(publisherTask, "wifi_pub", 4096, nullptr, 1, nullptr, cfg::WIFI_CORE);
+    xTaskCreatePinnedToCore(publisherTask, "wifi_pub", 8192, nullptr, 1, nullptr, cfg::WIFI_CORE);
 
     Serial.printf("WiFi AP %s  password %s  http://%s\n", ssid, cfg::WIFI_PASSWORD,
                   WiFi.softAPIP().toString().c_str());
@@ -242,7 +340,7 @@ wifi_link::Commands wifi_link::takeCommands() {
     // lastRxMs newer than `now` and wrap the age.
     const uint32_t now = millis();
     c.linkAlive        = haveRx && now - lastRxMs < cfg::LINK_TIMEOUT_MS;
-    commands.kill = commands.arm = commands.fly = commands.disarm = false;
+    commands.kill = commands.arm = commands.fly = commands.disarm = commands.zero = false;
     portEXIT_CRITICAL(&lock);
     return c;
 }

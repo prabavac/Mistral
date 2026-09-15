@@ -15,15 +15,22 @@ STATE     r <r1> <r2>  dr <dr1> <dr2>  i <ir1> <ir2>  u <u1> <u2>  us <X> <Y>
           deg          deg/s            rad·s          deg           µs
 ```
 
-> Do **not** enable `THRUST_SCHED`, raise `LQR_GAIN_SCALE` above 0.3, or widen
-> `TVC_CLAMP_RAD` without the owner's explicit say-so. Those three are the difference
-> between a bench test and a crash.
+> Do **not** enable `THRUST_SCHED` or widen `TVC_CLAMP_RAD` without the owner's explicit
+> say-so. Gains and servo trim are live in the ground page's **Tuning** panel and clamped in
+> firmware: scale 0–1.0; angle 0.5–1.5×, rate 0.5–2×, integral 0–1.5× of the solved K; trim
+> ±200 µs per servo. Both are remembered in the browser: once a trim is copied into
+> `SERVO_*_CENTRE_US`, press **Zero** under Servo trim. **Integral action boots OFF**: raise it
+> on the stand after reading the bias, and have it on before any free flight.
 
 ## 1. Gyro bias at boot
 
 - Power up upright and perfectly still. Serial prints `IMU ok  gyro bias x y z dps`;
   each axis should be well under 0.1 dps.
 - At rest, `dr` sits near 0 and `r` does not creep.
+- **Before every flight**, on the launch spot, DISARMED and still: **Zero IMU** (Attitude
+  panel). It re-measures the gyro bias and re-levels both estimators to that ground (~1.5 s),
+  and refuses if the vehicle moves. Between zeros the gyro offset is re-learned whenever the
+  vehicle sits still (never while FLYING); the Attitude note shows the learned offset.
 
 Observed 2026-09-13 on serial: −0.011 / +0.001 / −0.003 dps, angles steady.
 
@@ -75,7 +82,8 @@ changes. `ATTITUDE_USE_FUSION` picks the controller's input (currently Fusion).
 **Props off and airframe restrained: this step spins the motors.**
 
 1. From ARMED, tap **FLY** twice. ESCs hold at minimum for ~3 s (countdown), then the pill
-   reads FLYING and the note says integrators **held at zero**.
+   reads FLYING and the note says integrators **held at zero**. Integral gain boots at 0:
+   raise X and Y **Integral** in the Tuning panel first, or `i` stays 0 at any throttle.
 2. Hold a small steady tilt and raise the throttle to below 50 %: `i` stays 0.000. (Untick
    *Snap to zero on release* if you want the slider to stay put.)
 3. Raise it to 50 % or more: the note says integrators **on**, and `i` on the tilted axis

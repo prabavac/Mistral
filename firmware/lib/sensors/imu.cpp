@@ -1,6 +1,7 @@
 #include "imu.h"
 
 #include <Arduino.h>
+#include <cmath>
 #include <ICM42688.h>
 #include <Wire.h>
 #include <mistral_config.h>
@@ -64,6 +65,29 @@ bool configureUiFilter() {
     return ok && readReg(REG_GYRO_ACCEL_CONFIG0, readBack) && readBack == bw;
 }
 
+// Average cfg::IMU_BIAS_SAMPLES gyro and accel readings. Returns the widest gyro spread on any
+// axis (max − min, dps), so a caller can tell whether the vehicle moved.
+float average(imu::Vec3& gyro, imu::Vec3& accel) {
+    imu::Vec3 a{}, g{}, lo{1e9f, 1e9f, 1e9f}, hi{-1e9f, -1e9f, -1e9f};
+    for (uint16_t i = 0; i < cfg::IMU_BIAS_SAMPLES; i++) {
+        sensor.getAGT();
+        const imu::Vec3 r{sensor.gyrX(), sensor.gyrY(), sensor.gyrZ()};
+        a.x += sensor.accX();
+        a.y += sensor.accY();
+        a.z += sensor.accZ();
+        g.x += r.x;
+        g.y += r.y;
+        g.z += r.z;
+        lo = {std::fmin(lo.x, r.x), std::fmin(lo.y, r.y), std::fmin(lo.z, r.z)};
+        hi = {std::fmax(hi.x, r.x), std::fmax(hi.y, r.y), std::fmax(hi.z, r.z)};
+        delay(cfg::IMU_BIAS_SAMPLE_MS);
+    }
+    const float n = cfg::IMU_BIAS_SAMPLES;
+    gyro          = {g.x / n, g.y / n, g.z / n};
+    accel         = {a.x / n, a.y / n, a.z / n};
+    return std::fmax(std::fmax(hi.x - lo.x, hi.y - lo.y), hi.z - lo.z);
+}
+
 }  // namespace
 
 bool imu::init() {
@@ -83,21 +107,17 @@ bool imu::init() {
 
     // Gyro bias MUST be removed: left in, it integrates into an angle that creeps and never
     // returns to zero. begin() already subtracts the library's estimate; this average (the
-    // bench sketch's) removes what is left.
-    Vec3 a{}, g{};
-    for (uint16_t i = 0; i < cfg::IMU_BIAS_SAMPLES; i++) {
-        sensor.getAGT();
-        a.x += sensor.accX();
-        a.y += sensor.accY();
-        a.z += sensor.accZ();
-        g.x += sensor.gyrX();
-        g.y += sensor.gyrY();
-        g.z += sensor.gyrZ();
-        delay(cfg::IMU_BIAS_SAMPLE_MS);
-    }
-    const float n = cfg::IMU_BIAS_SAMPLES;
-    gyroBias      = {g.x / n, g.y / n, g.z / n};
-    accelMean     = {a.x / n, a.y / n, a.z / n};
+    // bench sketch's) removes what is left. At boot it is kept even if the vehicle moved.
+    average(gyroBias, accelMean);
+    return true;
+}
+
+bool imu::calibrate() {
+    if (beginResult != 1) return false;
+    Vec3 g, a;
+    if (average(g, a) > cfg::IMU_STILL_MAX_SPREAD_DPS) return false;
+    gyroBias  = g;
+    accelMean = a;
     return true;
 }
 

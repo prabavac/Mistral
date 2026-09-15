@@ -47,8 +47,8 @@ void centre();
 // tick — writes happen on the 50 Hz frame.
 void setDeflection(float xRad, float yRad);
 
-// Live centre adjustment in µs, added on top of the servo's centreUs. Re-applies the last
-// commanded deflection; the µs backstops still apply.
+// Live centre adjustment in µs, added on top of the servo's centreUs and clamped to
+// ±cfg::TVC_TRIM_MAX_US. Re-applies the last commanded deflection; the µs backstops still apply.
 void setTrim(Axis axis, int16_t us);
 
 Status status();

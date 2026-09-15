@@ -71,7 +71,9 @@ void loop() {
     const uint32_t now = millis();
 
     const imu::Reading       imuReading = imu::read();
-    const attitude::Estimate att        = attitude::update(imuReading, dt);
+    // The gyro offset tracker learns only on the ground — never while FLYING.
+    const attitude::Estimate att        = attitude::update(
+        imuReading, dt, state_machine::state() != state_machine::State::FLYING);
 
     // Ground-station commands: recorded by the network side, applied here at the loop's
     // own rate. The throttle level goes first, so an arm or fly is judged against the zero
@@ -92,6 +94,13 @@ void loop() {
     }
     tvc::setTrim(tvc::Axis::X, cmd.trimXUs);
     tvc::setTrim(tvc::Axis::Y, cmd.trimYUs);
+    static uint32_t gainsSeq = 0;
+    if (cmd.gainsSeq != gainsSeq) {
+        gainsSeq           = cmd.gainsSeq;
+        const lqr::Gains g = lqr::setGains(cmd.gains);  // clamped to the config ranges
+        Serial.printf("gains scale %.2f  X %.3f %.3f %.3f  Y %.3f %.3f %.3f\n", g.scale, g.x.kth,
+                      g.x.kq, g.x.ki, g.y.kth, g.y.kq, g.y.ki);
+    }
     if (!cmd.linkAlive && state_machine::state() != state_machine::State::DISARMED) {
         Serial.println("Link lost - disarmed");
         state_machine::disarm();
@@ -99,6 +108,22 @@ void loop() {
     if (cmd.kill) {
         state_machine::disarm();
         wifi_link::ack(cmd.killId, true);
+    }
+    if (cmd.zero) {
+        // Re-zero the IMU on the ground. imu::calibrate() blocks ~1.5 s, so DISARMED only —
+        // nothing is being controlled — and it keeps the old zero if the vehicle moves.
+        const bool disarmed = state_machine::state() == state_machine::State::DISARMED;
+        const bool ok       = disarmed && imu::calibrate();
+        if (ok) {
+            attitude::init(imu::accelMean_g());
+            const imu::Vec3 b = imu::gyroBias_dps();
+            Serial.printf("IMU re-zeroed  gyro bias %+.3f %+.3f %+.3f dps\n", b.x, b.y, b.z);
+        }
+        wifi_link::ack(cmd.zeroId, ok,
+                       !disarmed                ? "DISARM first"
+                       : imu::beginCode() != 1  ? "IMU not running"
+                                                : "vehicle moved - hold it still and retry");
+        lastTickUs = micros();  // the calibration blocked the loop: keep that gap out of the next dt
     }
 
     throttle::update();
@@ -131,5 +156,5 @@ void loop() {
     }
 
     wifi_link::publish({now, throttle::status(), tvc::status(), att, state_machine::state(), ctl,
-                        state_machine::integrating()});
+                        state_machine::integrating(), lqr::gains()});
 }

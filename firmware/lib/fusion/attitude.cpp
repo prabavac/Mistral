@@ -31,6 +31,7 @@ V3    gRef{0.0f, 0.0f, 1.0f}, e1{1.0f, 0.0f, 0.0f}, e2{0.0f, 1.0f, 0.0f};
 float comp1 = 0.0f, comp2 = 0.0f;
 
 FusionAhrs ahrs;
+FusionBias offsetTracker;  // gyro offset left after calibration, deg/s, sensor axes
 bool       fusionZeroed = false;
 float      zeroRoll_deg = 0.0f, zeroPitch_deg = 0.0f;
 
@@ -57,12 +58,26 @@ void attitude::init(const imu::Vec3& accelMean_g) {
         .rejectionTimeout      = cfg::FUSION_REJECTION_TIMEOUT_S,
     };
     FusionAhrsSetSettings(&ahrs, &settings);
+
+    FusionBiasInitialise(&offsetTracker);
+    const FusionBiasSettings biasSettings = {
+        .sampleRate          = static_cast<float>(cfg::CONTROL_LOOP_HZ),
+        .stationaryThreshold = cfg::FUSION_BIAS_STILL_DPS,
+        .stationaryPeriod    = cfg::FUSION_BIAS_STILL_S,
+    };
+    FusionBiasSetSettings(&offsetTracker, &biasSettings);
     fusionZeroed = false;
 }
 
-attitude::Estimate attitude::update(const imu::Reading& reading, float dt_s) {
+attitude::Estimate attitude::update(const imu::Reading& reading, float dt_s, bool learnGyroOffset) {
     if (!reading.valid) return last;
-    const V3 g = reading.gyro_dps;
+    // Remove the gyro offset that drifted since calibration. FusionBiasUpdate learns (only once
+    // the vehicle has been still for cfg::FUSION_BIAS_STILL_S) and removes; in flight, just remove.
+    const FusionVector raw  = {{reading.gyro_dps.x, reading.gyro_dps.y, reading.gyro_dps.z}};
+    const FusionVector gyro = learnGyroOffset
+                                  ? FusionBiasUpdate(&offsetTracker, raw)
+                                  : FusionVectorSubtract(raw, FusionBiasGetOffset(&offsetTracker));
+    const V3 g = {gyro.axis.x, gyro.axis.y, gyro.axis.z};
 
     // Complementary filter. The rotation from captured-up to current-up has magnitude
     // sin(angle); projecting it onto e1/e2 gives the tilt about each sensing axis.
@@ -107,6 +122,10 @@ attitude::Estimate attitude::update(const imu::Reading& reading, float dt_s) {
         last.dr1 = rate1;
         last.dr2 = rate2;
     }
+    const FusionVector offset =
+        FusionRemap(FusionBiasGetOffset(&offsetTracker), FusionRemapAlignmentPXPZNY);
+    last.gyroOffset1Dps = offset.axis.x;
+    last.gyroOffset2Dps = offset.axis.y;
     last.yawRate = bodyGyro.axis.z * DEG2RAD;
     last.valid   = fusionZeroed;
     return last;
