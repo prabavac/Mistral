@@ -1,6 +1,6 @@
 #include "display.h"
 
-// STUB — implemented during bring-up, against real hardware.
+// STUB: implemented during bring-up, against real hardware.
 
 void display::init() {}
 

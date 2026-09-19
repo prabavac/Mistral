@@ -7,7 +7,7 @@
 #include <mistral_config.h>
 
 // The ground-station page. web/index.html is its only copy: board_build.embed_txtfiles in
-// platformio.ini links it into the image, and it is served straight from flash — never
+// platformio.ini links it into the image, and it is served straight from flash, never
 // rebuilt per request. The embed appends a NUL terminator, which is not sent. Declared
 // outside the anonymous namespace so the names keep external linkage.
 extern const uint8_t PAGE_START[] asm("_binary_web_index_html_start");
@@ -23,7 +23,7 @@ AsyncWebSocket ws(cfg::WIFI_WS_PATH);
 portMUX_TYPE         lock = portMUX_INITIALIZER_UNLOCKED;
 wifi_link::Commands  commands{};
 wifi_link::Telemetry telemetry{};
-uint32_t             lastRxMs = 0;      // millis() of the last valid frame from any client —
+uint32_t             lastRxMs = 0;      // millis() of the last valid frame from any client;
 bool                 haveRx   = false;  // the link-loss heartbeat
 
 // Acks waiting for the publisher task. Queueing never blocks: a full queue drops the ack.
@@ -68,7 +68,7 @@ void handleCommand(const uint8_t* data, size_t len) {
     const uint32_t id   = doc["id"] | 0u;
 
     if (strcmp(type, "ping") == 0) {
-        return;  // heartbeat only — no ack
+        return;  // heartbeat only, no ack
     } else if (strcmp(type, "kill") == 0) {
         setEvent(commands.kill, commands.killId, id);
     } else if (strcmp(type, "arm") == 0) {
@@ -310,7 +310,7 @@ void publisherTask(void*) {
             last = xTaskGetTickCount();
             // textAll queues per client, and a client whose queue is full just misses this frame
             // (ESPAsyncWebServer discards; it does not close the client). Don't gate on every
-            // client being writable: one stalled socket — an old tab, a reload — would freeze
+            // client being writable: one stalled socket (an old tab, a reload) would freeze
             // telemetry for everyone until TCP timed it out.
             if (ws.count() > 0) sendTelemetry();
             ws.cleanupClients();

@@ -1,7 +1,7 @@
-# Mistral — Project Context
+# Mistral: Project Context
 
 **This is the authoritative spec for the vehicle.** When code, docs, or CLAUDE.md
-disagree with this file, this file wins — fix the other one. Hardware numbers
+disagree with this file, this file wins, so fix the other one. Hardware numbers
 live in `firmware/include/mistral_config.h`; this file states the rules they obey.
 
 ## 1. Vehicle
@@ -30,18 +30,18 @@ motor) is the reference for the mechanical and control approach. Borrow its
 
 | Role | Part | Interface | Rule |
 |------|------|-----------|------|
-| Flight computer | Heltec WiFi LoRa 32 V3 (ESP32-S3) | — | Arduino-ESP32 core 3.x |
+| Flight computer | Heltec WiFi LoRa 32 V3 (ESP32-S3) | n/a | Arduino-ESP32 core 3.x |
 | IMU | ICM-42688-P | I2C 0x68 for bring-up; SPI preferred | driver library chosen at bring-up |
-| Barometer | BMP388 | I2C 0x76 / 0x77 | **display only — never altitude feedback** |
+| Barometer | BMP388 | I2C 0x76 / 0x77 | **display only, never altitude feedback** |
 | Flow + range | MicoAir MTF-01P | UART 115200 | optical flow + 12 m rangefinder in one module |
 | Motors | 2× DZP30 | 2 independent ESCs | never Y-split |
 | TVC | 2× MG90S, gear-reduced | LEDC PWM | clamp + µs backstop per servo |
-| Display | on-board SSD1306 | U8g2, hardcoded pins | — |
+| Display | on-board SSD1306 | U8g2, hardcoded pins | n/a |
 
 ## 4. Estimation
 
 - **Attitude** (`fusion/attitude`): IMU → pitch, roll, yaw **rate**. There is no
-  magnetometer on this build, so yaw is rate only — no heading.
+  magnetometer on this build, so yaw is rate only, with no heading.
 - **Translation** (`fusion/translation`): flow + range → lateral velocity and
   position.
   - Flow is **angular**: `actual_velocity = reported_flow × altitude`.
@@ -75,7 +75,7 @@ motor) is the reference for the mechanical and control approach. Borrow its
 Actuator hardware, calibration, ESC procedure and comms detail:
 [`docs/actuators-comms.md`](docs/actuators-comms.md).
 
-### PWM conventions — do not deviate
+### PWM conventions: do not deviate
 
 - Native LEDC only. Call `ledcAttachChannel(pin, 50, 14, ch)` with **explicit**
   channel numbers, **once**, in each module's `init()`.
@@ -114,13 +114,13 @@ Resolve these during bring-up and record the answers here.
 
 - [ ] MTF-01P UART pins (placeholders in config).
 - [ ] ICM-42688 SPI pins, and which driver library.
-- [x] ESC model: 2× 12 A with BEC, driven direct from 3.3 V — no buffer.
+- [x] ESC model: 2× 12 A with BEC, driven direct from 3.3 V, no buffer.
 - [ ] Battery.
 - [ ] `ServoCal` values. Centres and backstops are MEASURED; `usPerServoDeg` and the
       absolute gear-ratio scale need a protractor check; signs verified on the stand.
 - [x] `ARM_HOLD_MS` = 3000.
 - [ ] `MTF01_TIMEOUT_MS` (placeholder in config).
-- [ ] Total thrust: 480–560 g, unresolved — measure on a thrust stand.
+- [ ] Total thrust: 480–560 g, unresolved: measure on a thrust stand.
 - [ ] LQR state and input vector. The config holds a proposal:
       x = [pitch, roll, pitch rate, roll rate, yaw rate, ∫pitch, ∫roll, ∫yaw rate],
       u = [tvcX, tvcY, differential].

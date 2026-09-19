@@ -1,4 +1,4 @@
-# Mistral — Actuators, Comms, and Ground UI
+# Mistral: Actuators, Comms, and Ground UI
 
 Spec packet for firmware implementation. Read alongside `PROJECT-CONTEXT.md`.
 
@@ -8,26 +8,26 @@ be confirmed on the stand before flight.
 
 ---
 
-## 0. Invariants — violating any of these produces silent failure
+## 0. Invariants: violating any of these produces silent failure
 
 1. **`PWM_RES_BITS = 14`.** The ESP32-S3 LEDC timer is 14 bits wide (1–14 for S3; 1–20
    only on the original ESP32). `ledcAttachChannel(pin, 50, 16, ch)` returns `false`
-   and **no pulses are produced at all** — the sketch looks alive, the serial log
+   and **no pulses are produced at all**. The sketch looks alive, the serial log
    prints plausible microseconds, and nothing moves. Always check the return value
    and halt on failure rather than continuing.
 
-2. **Native LEDC only.** Do NOT use ESP32Servo — its shared MCPWM timers collide on
+2. **Native LEDC only.** Do NOT use ESP32Servo: its shared MCPWM timers collide on
    the S3 and corrupt the ESC into an uncommanded spin. Do NOT use the Dlloydev
    ESP32-AnalogWrite lib (old `ledcSetup` API, won't compile on core 3.x). Do NOT use
-   bare `ledcAttach` (auto-channel) — it returns fail; use explicit channels. Do NOT
-   call `ledcAttachChannel` from `loop()` — it returns `false`.
+   bare `ledcAttach` (auto-channel), which returns fail; use explicit channels. Do NOT
+   call `ledcAttachChannel` from `loop()`, where it returns `false`.
 
 3. **Attach each channel exactly once, in `setup()`.**
 
 4. **NO SOFTWARE INTERPOLATION between servo positions.** Command the target pulse
    directly and let the servo slew to it natively. The analog servo's internal
    proportional loop *is* the smooth glide. Stepping through intermediate targets
-   makes the servo re-converge on each one and is visibly steppy — confirmed twice on
+   makes the servo re-converge on each one and is visibly steppy, confirmed twice on
    this hardware. In flight the controller already produces a smoothly varying target
    each tick; there is nothing to interpolate.
 
@@ -35,7 +35,7 @@ be confirmed on the stand before flight.
    buzz. Compare the computed duty count against the last one written and skip if
    equal.
 
-6. **Common ground across everything** — both ESCs, the ESP32, all servos, the BEC,
+6. **Common ground across everything**: both ESCs, the ESP32, all servos, the BEC,
    and all sensors. A floating ground cost a full debugging session on this build: the
    ESCs beeped continuously because they had no reference for the PWM signal and saw
    no throttle at all.
@@ -54,11 +54,11 @@ be confirmed on the stand before flight.
 | Servos | 2× MG90S, metal gear |
 | Supply | 4.8–6.0 V from the **5 V BEC**, never from the Heltec |
 | Current | 10 mA idle, 120–250 mA moving, **up to 700 mA stalled** |
-| Dead band | **5 µs** — finer commands are ignored by the servo's comparator |
+| Dead band | **5 µs**, finer commands are ignored by the servo's comparator |
 | Mass | 13.4 g each |
 | Signal | 3.3 V direct from the S3. **No level shifter.** |
 
-Metal gear is not a preference — the reference project chose it specifically because
+Metal gear is not a preference. The reference project chose it specifically because
 metal gears have far less backlash than nylon, and backlash is the limiting factor on
 gimbal precision.
 
@@ -76,10 +76,10 @@ clamp and the per-servo µs backstops exist for this.
 | Servo Y (roll) | **5** | 3 |
 
 GPIO 48 is noisy for *continuous* PWM but fine for a servo, which only slews to a held
-position. GPIO 5 replaced GPIO 4 on Zephyr after a confirmed wiring fault on GPIO 4 —
+position. GPIO 5 replaced GPIO 4 on Zephyr after a confirmed wiring fault on GPIO 4,
 treat GPIO 4 as suspect on this board family until proven otherwise.
 
-### Calibration — MEASURED
+### Calibration: MEASURED
 
 ```
 X_CENTER = 1626 us
@@ -100,27 +100,27 @@ a per-servo backstop is ever set outside them.
 Resolution at 14 bits / 50 Hz is **1.22 µs per count**, four times finer than the 5 µs
 dead band. There is no resolution problem to solve.
 
-### Gear ratios — 3:1 on X, 4:1 on Y. Corroborated, not yet measured.
+### Gear ratios: 3:1 on X, 4:1 on Y. Corroborated, not yet measured.
 
 The reference project uses **servo-x 3:1, servo-y 4:1**. The asymmetry is kinematic,
-not a design choice — servo-y's gear revolves around the TVC axis as it rotates, so it
+not a design choice: servo-y's gear revolves around the TVC axis as it rotates, so it
 needs one extra full rotation per 360° of TVC travel.
 
 **Corroborating observation on this gimbal:** at ~10.5 µs per servo degree, ±500 µs is
 roughly ±48° of servo travel, which through the two ratios predicts ±15.9° of TVC on X
-and ±11.9° on Y — Y travelling about a quarter less than X. Running the full ±500 sweep
+and ±11.9° on Y, with Y travelling about a quarter less than X. Running the full ±500 sweep
 on this hardware, **Y does visibly sweep about a quarter less than X**. The inherited
 ratios are therefore consistent with the built gimbal.
 
 **Still required before flight: an absolute protractor measurement.** The sweep confirms
-the *ratio between* the axes, not the absolute scale — a common error in
+the *ratio between* the axes, not the absolute scale, a common error in
 `usPerServoDeg` would shift both axes together and go undetected. Command a known TVC
 angle, measure what actually happens, and correct `usPerServoDeg` or `gearRatio` to
 match. This number feeds the control-effectiveness constant, so an error here scales
 every commanded correction.
 
 Note the reference does NOT encode the ratio in firmware. Their driver is a bare map,
-`pulse = 1000 + (perc + offset) × 10` with offsets 25 (x) and 20 (y) — pure mechanical
+`pulse = 1000 + (perc + offset) × 10` with offsets 25 (x) and 20 (y), pure mechanical
 trim. The ratio is absorbed into the control-effectiveness constants they measured on
 a bifilar pendulum. We encode the ratio explicitly so commanded angles stay physical
 and the clamp means degrees of nozzle, not microseconds.
@@ -128,11 +128,11 @@ and the clamp means degrees of nozzle, not microseconds.
 The bench sweep sketch works purely in microseconds and contains no ratio. The ratio
 enters at `lib/tvc`.
 
-### Structure — `lib/tvc`
+### Structure: `lib/tvc`
 
-- `init()` — attach both channels once, park at centre, return false on attach failure
-- `setDeflection(float pitchDeg, float rollDeg)` — clamp, apply ratio and sign, write
-- `setTrim(axis, us)` — live centre adjustment, rides on top
+- `init()`: attach both channels once, park at centre, return false on attach failure
+- `setDeflection(float pitchDeg, float rollDeg)`: clamp, apply ratio and sign, write
+- `setTrim(axis, us)`: live centre adjustment, rides on top
 - `centre()`
 - Per-servo `ServoCal` struct in config: centre µs, µs per servo degree, gear ratio,
   direction sign, µs backstops
@@ -156,11 +156,11 @@ reversed sign steers the vehicle into the ground.
 | Motor | DZP30 contra-rotating, 1500 KV, 32 g |
 | Props | GWS 7035 three-blade pair |
 | Draw | 5.1 A per motor at 11.1 V, 0.5 A idle |
-| Thrust | 480–560 g total — **unresolved**, see PROJECT-CONTEXT §8 |
+| Thrust | 480–560 g total, **unresolved**, see PROJECT-CONTEXT §8 |
 | Signal | 3.3 V direct. No level shifter. |
 
-No buffer is needed. PX4's documentation states PWM inputs use TTL/CMOS levels — high
-is above 2.0 V — and 5 V levels are never required to switch an input on. The
+No buffer is needed. PX4's documentation states PWM inputs use TTL/CMOS levels, where high
+is above 2.0 V, and 5 V levels are never required to switch an input on. The
 reference project drives these same ESCs directly from a 3.3 V STM32 with no level
 shifter anywhere in its BOM. (Zephyr needed a 74AHCT125N only because its specific 80 A
 ESC refused to arm on 3.3 V.)
@@ -173,7 +173,7 @@ ESC refused to arm on 3.3 V.)
 | ESC 2 (lower motor) | **7** | 1 |
 
 **Two independent channels. Never Y-split.** Differential RPM between the two motors
-is the yaw actuator on this airframe — the reference's control vector is
+is the yaw actuator on this airframe: the reference's control vector is
 `[servo-x, servo-y, differential thrust, main thrust]`. Y-splitting removes an axis of
 control.
 
@@ -182,7 +182,7 @@ ESC seeing a floating or high throttle line will either enter safety lockout or 
 as a full-throttle arming command. With the pulldown the line reads cleanly low, so the
 ESC sees no pulses rather than garbage.
 
-### Throttle range calibration — timing is critical
+### Throttle range calibration: timing is critical
 
 Standard procedure, but there is a **~4 second window** that is easy to miss:
 
@@ -192,7 +192,7 @@ Standard procedure, but there is a **~4 second window** that is easy to miss:
 4. **Within about 4 seconds**, drop to **MIN (1000 µs)**. Hold ~3 s. Beep-beep confirms
    the low point, then the self-detect tone.
 
-Miss the window and the ESC continues into its **programming menu** instead — a
+Miss the window and the ESC continues into its **programming menu** instead, a
 5-second pause followed by groups of tones. If you hear that, unplug, replug, retry.
 
 Working values on this hardware: 5 s to unplug, MAX held for 3 s with a "PLUG IN NOW"
@@ -224,27 +224,27 @@ Meter check for "are pulses present": DC volts on the signal pin against ground.
 - **There is currently no voltage sense on this build.** The reference runs an INA226
   configured for 140 µs conversions specifically so telemetry doesn't bottleneck its
   100 Hz loop, and uses it for exactly this compensation. Until that's added, hang an
-  external cell-checker alarm on a balance lead — at hover current, full to floor is
+  external cell-checker alarm on a balance lead. At hover current, full to floor is
   about five minutes.
 - **Auto-cut:** kill throttle after a configurable idle period at non-zero throttle.
   Prevents an unattended bench rig running a pack flat.
 
-### Structure — `lib/throttle`
+### Structure: `lib/throttle`
 
 `init()`, `arm()`, `disarm()`, `setNormalised(float 0..1)`, `calibrate()`, and
 `setDifferential(float)` for the yaw channel. Differential applies ±delta to the two
-ESCs around a common base — positive yaw adds to motor 1 and subtracts equally from
+ESCs around a common base: positive yaw adds to motor 1 and subtracts equally from
 motor 2.
 
 ---
 
-## 3. WiFi — SoftAP (`lib/wifi_link`)
+## 3. WiFi: SoftAP (`lib/wifi_link`)
 
 ### Configuration
 
 - **SoftAP mode**, not station. The vehicle is the access point; the phone or laptop
   joins it. No router dependency in a field.
-- `WiFi.softAP(ssid, password)` then `WiFi.softAPIP()` — default gateway is 192.168.4.1.
+- `WiFi.softAP(ssid, password)` then `WiFi.softAPIP()`. The default gateway is 192.168.4.1.
 - SSID `mistral-<last4 of MAC>`, WPA2 with a fixed password in config.
 - **WiFi runs on core 0, the control loop on core 1.** This is a Zephyr convention and
   it matters: without it, a browser connecting can add latency to the attitude loop.
@@ -254,11 +254,11 @@ motor 2.
 **The control loop must never block on the network.** Launch, arm, throttle, and gain
 edits are *flags and values the loop polls*, never callbacks that do work inline. The
 web handler writes to a shared struct; the loop reads it at its own rate. Same
-discipline as the MTF-01P UART — no blocking reads in the control path.
+discipline as the MTF-01P UART: no blocking reads in the control path.
 
 ### Library
 
-**ESP32Async/ESPAsyncWebServer** plus **ESP32Async/AsyncTCP** — the actively maintained
+**ESP32Async/ESPAsyncWebServer** plus **ESP32Async/AsyncTCP**, the actively maintained
 fork (the original me-no-dev repo is stale). Async matters here because a synchronous
 `WebServer` blocks while serving. In `platformio.ini`:
 
@@ -270,21 +270,21 @@ lib_deps =
 ```
 
 Use **WebSocket**, not polling. A persistent bidirectional connection means telemetry
-pushes at whatever rate we choose and every open tab stays in sync — with plain HTTP
+pushes at whatever rate we choose and every open tab stays in sync. With plain HTTP
 requests, state doesn't update across tabs without a refresh.
 
-Suggested rates: telemetry push at 10–20 Hz (not the full 100 Hz loop rate — that
+Suggested rates: telemetry push at 10–20 Hz (not the full 100 Hz loop rate, since that
 floods the socket for no visible benefit), commands event-driven.
 
 ### Serve the page from flash
 
-The page source is `web/index.html` at the repo root — its only copy. `platformio.ini`
+The page source is `web/index.html` at the repo root, its only copy. `platformio.ini`
 embeds it into the firmware image at build time (`board_build.embed_txtfiles`), and
 `wifi_link` serves it straight from flash. It is never rebuilt per request, and there is
 no hand-maintained second copy to drift (Zephyr mirrored its page into a `PAGE[]` string
 and had to keep the two in sync by hand).
 
-The page is one self-contained file — no CDN, no external assets — so it works with no
+The page is one self-contained file with no CDN and no external assets, so it works with no
 internet. It can also be opened directly from disk while joined to the AP: loaded over
 `file:`, it connects to `ws://192.168.4.1/ws`. WebSocket connections are not subject to
 CORS, so unlike Zephyr's HTTP endpoints no `Access-Control-Allow-Origin` header is needed.
@@ -317,12 +317,12 @@ into that. Rules (the first three carried over from Zephyr's page):
 ## 4. Ground station web UI
 
 **Built so far (bench bring-up):** status bar, KILL, arm/disarm, throttle, and a nozzle
-readout for the bench sweep. Everything else in this section is still design only — it
+readout for the bench sweep. Everything else in this section is still design only; it
 is here so the WebSocket message schema is designed with the final UI in mind.
 
 ### Layout
 
-Single page, dark, phone-first — it'll be used outdoors on a phone one-handed. No
+Single page, dark, phone-first, since it'll be used outdoors on a phone one-handed. No
 frameworks, no CDN, no build step. One self-contained HTML file with inline CSS and JS.
 
 ### Panels
@@ -347,7 +347,7 @@ straight to high throttle.
 **5. Attitude**
 Live pitch/roll/yaw as numbers and a simple artificial-horizon SVG. Commanded nozzle
 deflection per axis shown alongside actual, so lag is visible. Because X and Y have
-different gear ratios, display TVC degrees, not microseconds — the two axes are not
+different gear ratios, display TVC degrees, not microseconds, because the two axes are not
 comparable in µs.
 
 **6. Trim**
@@ -356,7 +356,7 @@ Per-servo centre adjustment in microseconds, ± buttons with a live readout, and
 `mistral_config.h`. This is how bench calibration numbers get out of the vehicle.
 
 **7. Gains**
-Live-editable PID and LQR gains per axis. Edits apply immediately — this is the whole
+Live-editable PID and LQR gains per axis. Edits apply immediately, which is the whole
 point, since gains are tuned on a stand with the vehicle running. A "revert to
 compiled defaults" button.
 
@@ -370,7 +370,7 @@ JSON both directions. Telemetry frames tagged by type so the UI can route them w
 parsing everything. Commands acknowledged so the UI can show a failed command rather
 than silently dropping it.
 
-The implemented schema — command types, acks and the telemetry frame — is documented
+The implemented schema (command types, acks and the telemetry frame) is documented
 at the top of `firmware/lib/wifi_link/wifi_link.h`. That header is the reference; extend
 it there as panels gain firmware support.
 

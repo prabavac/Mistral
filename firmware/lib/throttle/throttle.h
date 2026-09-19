@@ -1,7 +1,7 @@
-// throttle.h — coaxial contra-rotating motor ESCs — Mistral
+// throttle.h: coaxial contra-rotating motor ESCs for Mistral
 //
 // TWO INDEPENDENT ESC channels: ESC1 = upper motor, ESC2 = lower motor. Never Y-split
-// the signal — differential thrust is the yaw actuator, so each motor must be
+// the signal: differential thrust is the yaw actuator, so each motor must be
 // separately commandable. Each ESC has its own pin, LEDC channel and write; there is
 // no shared "write all PWM" loop and no write path shared with lib/tvc.
 //
@@ -16,7 +16,7 @@
 //
 // No voltage compensation yet: this build has no voltage sense.
 //
-// PWM — native LEDC only. init() calls ledcAttachChannel(pin, 50, 14, ch) ONCE per
+// PWM: native LEDC only. init() calls ledcAttachChannel(pin, 50, 14, ch) ONCE per
 // ESC, on the explicit channels cfg::ESC1_LEDC_CH / ESC2_LEDC_CH. ledcWrite() takes
 // the PIN (core 3.x). usToDuty = (us << 14) / 20000. Never attach in loop(), never
 // use ledcAttach auto-channel, never ESP32Servo (its MCPWM timers caused uncommanded
@@ -40,7 +40,7 @@ struct Status {
 };
 
 // Attach both ESC channels once and hold them at ESC_MIN_US. Returns false if either
-// attach fails — no pulses are produced then, so the caller must halt. Call FIRST in
+// attach fails, because no pulses are produced then and the caller must halt. Call FIRST in
 // setup().
 bool init();
 
@@ -63,13 +63,13 @@ void setDifferential(float delta);
 
 // Static rotor balance: ESC1 gets throttle x ratio, ESC2 throttle x (2 - ratio), so their
 // torques can be matched and the airframe stops yawing. Clamped to cfg::ESC_BALANCE_RANGE
-// (NaN reads as the default). Survives disarm — it is a calibration, not a command.
+// (NaN reads as the default). Survives disarm, since it is a calibration, not a command.
 void setBalance(float ratio);
 
 // Advance arming and auto-cut, then write both ESCs. Call once per control tick.
 void update();
 
-// BENCH ONLY — PROPS OFF. Blocking ESC throttle-range calibration (~12 s): MIN while
+// BENCH ONLY, PROPS OFF. Blocking ESC throttle-range calibration (~12 s): MIN while
 // the battery is unplugged, MAX while it is plugged back in, then MIN for the low
 // point. Drives MAX regardless of the arming gate. Refused unless DISARMED. Progress
 // is printed to Serial.

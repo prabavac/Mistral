@@ -1,4 +1,4 @@
-// imu.h — ICM-42688-P 6-axis IMU — Mistral (lib/sensors)
+// imu.h: ICM-42688-P 6-axis IMU for Mistral (lib/sensors)
 //
 // I2C at cfg::ICM42688_I2C_ADDR (0x69) on Wire1 (cfg::I2C_SDA / I2C_SCL). Wire belongs to
 // the OLED. Driver: finani/ICM42688 1.1.0, the version the bench sketch ran. Its begin()
@@ -11,7 +11,7 @@
 // Named imu, not icm42688: on a case-insensitive filesystem icm42688.h and the library's
 // ICM42688.h are the same file.
 //
-// Units: acceleration in g, angular rate in deg/s. SENSOR axes — remapping to the body
+// Units: acceleration in g, angular rate in deg/s. SENSOR axes; remapping to the body
 // frame is fusion's job.
 #pragma once
 
@@ -30,7 +30,7 @@ struct Reading {
 // Start Wire1, probe and configure the sensor, wait cfg::IMU_SETTLE_MS, then average
 // cfg::IMU_BIAS_SAMPLES readings for the gyro bias and the gravity direction. Blocks for
 // several seconds (the library's begin() also calibrates): keep the vehicle upright and
-// still. Returns false if the sensor does not respond — see beginCode().
+// still. Returns false if the sensor does not respond; see beginCode().
 bool init();
 
 // Re-measure the gyro bias and gravity direction: the same cfg::IMU_BIAS_SAMPLES average as

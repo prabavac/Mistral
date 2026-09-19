@@ -1,4 +1,4 @@
-# Mistral — bench verification
+# Mistral: bench verification
 
 Run these in order; each one gates the next. **Props off throughout.** Restrain the
 airframe for anything past step 2.
@@ -19,7 +19,7 @@ STATE     r <r1> <r2>  dr <dr1> <dr2>  i <ir1> <ir2>  u <u1> <u2>  us <X> <Y>
 > say-so. Gains and servo trim are live in the ground page's **Tuning** panel and clamped in
 > firmware: scale 0–1.0; angle 0.5–1.5×, rate 0.5–2×, integral 0–1.5× of the solved K; trim
 > ±200 µs per servo. **Motor balance** (0.9–1.1, 1.0 = equal) splits the throttle between the
-> rotors — ESC1 × ratio, ESC2 × (2 − ratio) — to cancel the yaw spin; it is remembered in the
+> rotors (ESC1 × ratio, ESC2 × (2 − ratio)) to cancel the yaw spin; it is remembered in the
 > browser too. It is a calibration, not a yaw controller: nothing feeds back. Both are remembered in the browser: once a trim is copied into
 > `SERVO_*_CENTRE_US`, press **Zero** under Servo trim. **Integral action boots OFF**: raise it
 > on the stand after reading the bias, and have it on before any free flight.
@@ -36,7 +36,7 @@ STATE     r <r1> <r2>  dr <dr1> <dr2>  i <ir1> <ir2>  u <u1> <u2>  us <X> <Y>
 
 Observed 2026-09-13 on serial: −0.011 / +0.001 / −0.003 dps, angles steady.
 
-## 2. ARMED — each servo opposes its tilt
+## 2. ARMED: each servo opposes its tilt
 
 1. Tap **ARM** twice. The pill reads ARMED; `i` must read 0.000 / 0.000 the whole time.
 2. Tilt about **body X** by hand. **Servo X** (GPIO 48) moves and servo Y doesn't. The
@@ -51,7 +51,7 @@ is wrong: stop and report.
 
 Record: `dir` X = ____, `dir` Y = ____ (config ships +1 / −1 from the bench sketch).
 
-## 2b. Gear ratios — measure, don't inherit
+## 2b. Gear ratios: measure, don't inherit
 
 With `BENCH_SERVO_SWEEP = true`, DISARMED steps each nozzle in turn: X +8.59°, X −8.59°,
 Y +8.59°, Y −8.59°, each held 5 s (the Nozzle panel shows which). Measure each nozzle's
@@ -79,7 +79,7 @@ wrong: do not proceed.
 Owner confirmed 2026-09-13, before the controller was wired. Repeat if the IMU mount
 changes. `ATTITUDE_USE_FUSION` picks the controller's input (currently Fusion).
 
-## 4. FLYING — integrals accumulate only at ≥ 70 % throttle
+## 4. FLYING: integrals accumulate only at ≥ 70 % throttle
 
 **Props off and airframe restrained: this step spins the motors.**
 

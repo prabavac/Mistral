@@ -1,4 +1,4 @@
-// state_machine.h — flight state — Mistral
+// state_machine.h: flight state for Mistral
 //
 //   DISARMED ⇄ ARMED ⇄ FLYING          DISARM, KILL, link loss: any state → DISARMED
 //

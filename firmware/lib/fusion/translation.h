@@ -1,4 +1,4 @@
-// translation.h — lateral velocity/position estimator — Mistral (lib/fusion)
+// translation.h: lateral velocity/position estimator for Mistral (lib/fusion)
 //
 // MTF-01P flow + range → lateral (X/Y) velocity and position.
 //
@@ -6,7 +6,7 @@
 // its view, so:  actual_velocity = reported_flow · altitude.
 //
 // Range is a SCALE FACTOR ONLY. Because it multiplies the whole estimate, noise
-// on it goes straight into velocity — low-pass it (cfg::RANGE_LPF_ALPHA) before
+// on it goes straight into velocity, so low-pass it (cfg::RANGE_LPF_ALPHA) before
 // use. Range is NEVER vertical/altitude feedback.
 #pragma once
 

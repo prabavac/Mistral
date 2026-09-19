@@ -130,7 +130,7 @@ void throttle::update() {
 
 bool throttle::calibrate() {
     if (state != State::DISARMED) return false;
-    Serial.println(F("ESC calibration — PROPS OFF"));
+    Serial.println(F("ESC calibration: PROPS OFF"));
     holdBoth(cfg::ESC_MIN_US, cfg::ESC_CAL_UNPLUG_MS, "MIN  unplug the battery");
     holdBoth(cfg::ESC_MAX_US, cfg::ESC_CAL_MAX_MS,    "MAX  PLUG IN NOW");
     holdBoth(cfg::ESC_MIN_US, cfg::ESC_CAL_MIN_MS,    "MIN  low point");

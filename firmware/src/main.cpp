@@ -1,11 +1,11 @@
-// main.cpp — Mistral thrust-vectored coaxial drone
+// main.cpp: Mistral thrust-vectored coaxial drone
 //
 // Wiring only. setup() brings modules up in a safe order; loop() runs at
 // cfg::CONTROL_LOOP_HZ on core 1: IMU → attitude → state machine → LQI → servos, with
 // ground-station commands applied at the loop's own rate. Sensors other than the IMU,
 // translation and the display are still stubs.
 //
-// Every module header is included so `pio run` compiles every library — the
+// Every module header is included so `pio run` compiles every library, because the
 // dependency finder only builds libraries reachable from src/.
 
 #include <Arduino.h>
@@ -71,7 +71,7 @@ void loop() {
     const uint32_t now = millis();
 
     const imu::Reading       imuReading = imu::read();
-    // The gyro offset tracker learns only on the ground — never while FLYING.
+    // The gyro offset tracker learns only on the ground, never while FLYING.
     const attitude::Estimate att        = attitude::update(
         imuReading, dt, state_machine::state() != state_machine::State::FLYING);
 
@@ -111,8 +111,8 @@ void loop() {
         wifi_link::ack(cmd.killId, true);
     }
     if (cmd.zero) {
-        // Re-zero the IMU on the ground. imu::calibrate() blocks ~1.5 s, so DISARMED only —
-        // nothing is being controlled — and it keeps the old zero if the vehicle moves.
+        // Re-zero the IMU on the ground. imu::calibrate() blocks ~1.5 s, so DISARMED only:
+        // nothing is being controlled, and it keeps the old zero if the vehicle moves.
         const bool disarmed = state_machine::state() == state_machine::State::DISARMED;
         const bool ok       = disarmed && imu::calibrate();
         if (ok) {

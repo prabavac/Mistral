@@ -1,7 +1,7 @@
-// tvc.h — thrust-vector gimbal servos — Mistral
+// tvc.h: thrust-vector gimbal servos for Mistral
 //
 // Two gear-reduced MG90S servos: X corrects r1 (rotation about body X), Y corrects r2.
-// The interface speaks NOZZLE RADIANS — deflection at the nozzle, not the servo horn — and
+// The interface speaks NOZZLE RADIANS (deflection at the nozzle, not the servo horn) and
 // this module is the mixer: the only place the gear ratios and degrees appear. Per servo,
 // from its cfg::ServoCal:
 //   1. clamp to ±cfg::TVC_CLAMP_RAD, in nozzle radians   PRIMARY limit, EVERY servo
@@ -14,7 +14,7 @@
 // NO software interpolation. The target pulse is written directly and the servo slews to
 // it natively; stepping through intermediate targets is visibly steppy.
 //
-// PWM — native LEDC only. init() calls ledcAttachChannel(pin, 50, 14, ch) ONCE per servo,
+// PWM: native LEDC only. init() calls ledcAttachChannel(pin, 50, 14, ch) ONCE per servo,
 // on the explicit channels cfg::SERVO_X_LEDC_CH / SERVO_Y_LEDC_CH. ledcWrite() takes the
 // PIN (core 3.x). Never attach in loop(), never use ledcAttach auto-channel, never
 // ESP32Servo.
@@ -37,14 +37,14 @@ struct Status {
 };
 
 // Attach both servo channels once and park at centre. Returns false if either attach
-// fails — no pulses are produced then, so the caller must halt.
+// fails, because no pulses are produced then and the caller must halt.
 bool init();
 
 // Command 0 on both axes.
 void centre();
 
 // Command nozzle deflection in radians: X corrects r1, Y corrects r2. Call every control
-// tick — writes happen on the 50 Hz frame.
+// tick; writes happen on the 50 Hz frame.
 void setDeflection(float xRad, float yRad);
 
 // Live centre adjustment in µs, added on top of the servo's centreUs and clamped to

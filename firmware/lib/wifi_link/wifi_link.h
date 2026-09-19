@@ -1,4 +1,4 @@
-// wifi_link.h — SoftAP + WebSocket ground link — Mistral
+// wifi_link.h: SoftAP + WebSocket ground link for Mistral
 //
 // The vehicle is the access point: SSID cfg::WIFI_SSID_PREFIX + last 4 hex digits of
 // the AP MAC, WPA2 password cfg::WIFI_PASSWORD, page at http://192.168.4.1, WebSocket
@@ -15,10 +15,10 @@
 // Commands::linkAlive goes false after cfg::LINK_TIMEOUT_MS without one, and loop()
 // disarms.
 //
-// Protocol — JSON text frames, each with a "type".
+// Protocol: JSON text frames, each with a "type".
 //
 //   client → vehicle (every command except ping carries a numeric "id"):
-//     {"type":"ping"}                              heartbeat — no ack
+//     {"type":"ping"}                              heartbeat, no ack
 //     {"type":"kill","id":1}
 //     {"type":"arm","id":2}                        DISARMED→ARMED (servos), FLYING→ARMED (motors off)
 //     {"type":"fly","id":6}                        ARMED→FLYING (ESC arm hold, then throttle)
@@ -53,7 +53,7 @@
 //      "ctl":{"u1Deg":..,"u2Deg":..,"ir1":..,"ir2":..,"integrating":..,       ir in rad·s
 //             "clampDeg":..,"iLimit":..,"iThrPct":..},   static limits, for the graphs
 //      "gains":{"scale":..,"x":[kth,kq,ki],"y":[kth,kq,ki]}}   the gains in use
-//         att: r1/r2 from both estimators (display units — the controller is radians);
+//         att: r1/r2 from both estimators (display units; the controller is radians);
 //         "fusion" says which one drives the controller.
 //         pushed to every client at cfg::TELEMETRY_HZ.
 #pragma once
@@ -74,7 +74,7 @@ struct Commands {
     bool     kill, arm, fly, disarm, zero;
     uint32_t killId, armId, flyId, disarmId, zeroId;  // echoed back in the ack
     // Levels: the latest received value, held between takes.
-    float   throttle;  // 0..1 — reset to 0 by kill, arm and disarm
+    float   throttle;  // 0..1, reset to 0 by kill, arm and disarm
     int16_t trimXUs, trimYUs;
     float   balance = cfg::ESC_BALANCE_DEF;  // static rotor balance ratio
     lqr::Gains gains;     // the latest received "gains" command

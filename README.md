@@ -5,7 +5,7 @@ Coaxial propellor-powered UAV. Another proff-of-concept of SPARC, loosely modele
 lift the vehicle and cancel each other's torque. A two-servo gimbal vectors the
 thrust for pitch and roll, and differential motor thrust controls yaw. Successor
 to Zephyr; the mechanical and control approach follows
-[fdiwth/tvc-drone](https://github.com/fdiwth/tvc-drone) (architecture only — no
+[fdiwth/tvc-drone](https://github.com/fdiwth/tvc-drone) (architecture only, no
 code is borrowed).
 
 > **Status: bench bring-up, not flying.** IMU (`imu`), attitude estimation
@@ -20,7 +20,7 @@ The full vehicle spec is [`PROJECT-CONTEXT.md`](PROJECT-CONTEXT.md).
 ## Authorship
 
 **Claude (or any AI assistant) may not be listed as a co-author of this code.**
-When code is committed, the only author is the repository owner — no
+When code is committed, the only author is the repository owner, with no
 `Co-Authored-By` trailers or AI attribution lines in commits or pull requests.
 
 ## Hardware
@@ -29,7 +29,7 @@ When code is committed, the only author is the repository owner — no
 |-----------|-----------|
 | Flight computer | Heltec WiFi LoRa 32 V3 (ESP32-S3) |
 | IMU | ICM-42688-P |
-| Barometer | BMP388 — display only |
+| Barometer | BMP388 (display only) |
 | Optical flow + range | MicoAir MTF-01P (UART) |
 | Propulsion | 2× DZP30 motors, contra-rotating, 2 independent ESCs |
 | TVC | 2× MG90S servos, gear-reduced (X 3:1, Y 4:1) |
@@ -42,14 +42,14 @@ mistral/
 ├── platformio.ini          build config (remaps into firmware/)
 ├── PROJECT-CONTEXT.md      authoritative vehicle spec
 ├── firmware/
-│   ├── include/            mistral_config.h — every pin, limit and gain
-│   ├── src/                main.cpp — wiring only
+│   ├── include/            mistral_config.h: every pin, limit and gain
+│   ├── src/                main.cpp: wiring only
 │   └── lib/                sensors (imu, bmp388, mtf01), fusion (attitude,
 │                           translation), control (lqr), tvc, throttle,
 │                           display, state_machine, safety, wifi_link, bench,
 │                           FusionAhrs (vendored xioTechnologies/Fusion v1.3.3)
-├── web/                    index.html — ground-station page, embedded into the firmware
-├── bench/                  VERIFY.md — ordered bench verification checklist
+├── web/                    index.html: ground-station page, embedded into the firmware
+├── bench/                  VERIFY.md: ordered bench verification checklist
 └── docs/                   wiring diagram, actuators & comms, flight logs
 ```
 
@@ -68,12 +68,12 @@ pio device monitor       # serial monitor, 115200
 
 The vehicle hosts its own WiFi access point and serves the ground-station page:
 
-1. Join the AP **`mistral-xxxx`** — the last four hex digits of the MAC, printed on
+1. Join the AP **`mistral-xxxx`**, where xxxx is the last four hex digits of the MAC, printed on
    serial at boot. The password is `cfg::WIFI_PASSWORD`.
 2. Open **http://192.168.4.1**.
 
 The page source is [`web/index.html`](web/index.html). The build embeds it into the
-firmware, so edit that file and reflash — there is no second copy to keep in sync.
+firmware, so edit that file and reflash. There is no second copy to keep in sync.
 While joined to the AP you can also open the file straight from disk; it connects to
 192.168.4.1. It has the status bar, KILL, two-tap arm/disarm, the throttle slider and a
 nozzle readout; the remaining panels are specified in

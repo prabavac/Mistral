@@ -1,6 +1,6 @@
 #include "translation.h"
 
-// STUB — implemented later, against real hardware.
+// STUB: implemented later, against real hardware.
 
 void translation::reset() {}
 

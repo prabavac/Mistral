@@ -1,4 +1,4 @@
-// safety.h — arming gates and saturation flags — Mistral
+// safety.h: arming gates and saturation flags for Mistral
 //
 // The actuator clamps themselves live where the pulses are generated (lib/tvc,
 // lib/throttle). This module gathers their saturation flags and owns the arming

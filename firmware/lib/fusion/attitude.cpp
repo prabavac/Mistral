@@ -25,7 +25,7 @@ float clampUnit(float v) { return v < -1.0f ? -1.0f : (v > 1.0f ? 1.0f : v); }
 
 // Complementary filter. Sensing axes come from the gravity vector captured at boot, so any
 // mounting angle works: e1 = sensor X orthogonalised against gravity (the mount's rotation
-// axis, body X), e2 = gRef × e1 (body Y). Fixed board axes BREAK with the IMU on its side —
+// axis, body X), e2 = gRef × e1 (body Y). Fixed board axes BREAK with the IMU on its side:
 // with gravity on sensor Y, one tilt direction reads nothing at all.
 V3    gRef{0.0f, 0.0f, 1.0f}, e1{1.0f, 0.0f, 0.0f}, e2{0.0f, 1.0f, 0.0f};
 float comp1 = 0.0f, comp2 = 0.0f;
@@ -89,8 +89,8 @@ attitude::Estimate attitude::update(const imu::Reading& reading, float dt_s, boo
     comp1 = cfg::COMP_FILTER_A * (comp1 + rate1 * dt_s) + (1.0f - cfg::COMP_FILTER_A) * acc1;
     comp2 = cfg::COMP_FILTER_A * (comp2 + rate2 * dt_s) + (1.0f - cfg::COMP_FILTER_A) * acc2;
 
-    // Fusion. The IMU is mounted rotated 90° about its X axis — body X = sensor +X, body Y =
-    // sensor +Z, body Z = sensor −Y — so gyro AND accel get the same remap.
+    // Fusion. The IMU is mounted rotated 90° about its X axis, so body X = sensor +X, body Y =
+    // sensor +Z, body Z = sensor −Y, and gyro AND accel get the same remap.
     const FusionVector bodyGyro =
         FusionRemap(FusionVector{{g.x, g.y, g.z}}, FusionRemapAlignmentPXPZNY);
     const FusionVector bodyAccel = FusionRemap(

@@ -1,4 +1,4 @@
-// bmp388.h — BMP388 barometer driver — Mistral
+// bmp388.h: BMP388 barometer driver for Mistral
 //
 // DISPLAY ONLY. The barometer is NOT altitude feedback: no control or fusion
 // module may consume these values. They exist for the OLED readout.
@@ -12,7 +12,7 @@ namespace bmp388 {
 struct Reading {
     float pressure_pa;
     float temperature_c;
-    float altitude_m;  // pressure altitude — display only
+    float altitude_m;  // pressure altitude, display only
     bool  valid;
 };
 

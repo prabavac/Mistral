@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#f2f2f7">
 <title>Mistral Ground Station</title>
 <!-- Mistral ground station. THE ONLY COPY: platformio.ini embeds this file into the
-     firmware at build time and lib/wifi_link serves it from flash — edit here, reflash.
+     firmware at build time and lib/wifi_link serves it from flash, so edit here and reflash.
      Self-contained: no CDN, no external assets, works with no internet.
 
      On the vehicle's network (mistral-xxxx) it connects to ws://192.168.4.1/ws. With no
-     vehicle — the ESP off, or this file opened from disk on another network — it falls back
+     vehicle (the ESP off, or this file opened from disk on another network), it falls back
      to DEMO mode: simulated telemetry, every command disabled. ?demo forces demo mode;
      ?demo=<seconds> starts the simulation at that point in its cycle; #graphs opens Graphs.
 
@@ -275,7 +275,7 @@ main{flex:1;min-height:0;padding:16px 20px 20px}
       <section class="card grow">
         <div class="card-head"><h2 class="retro">Attitude</h2><span class="caption" id="attSource"></span><button id="zeroImu" class="btn mini" type="button" disabled title="DISARMED, vehicle still on the launch spot: re-measure the gyro offset and re-level to this ground">Zero IMU</button></div>
         <div class="scope-wrap"><canvas id="scope"></canvas></div>
-        <div class="key"><span><i class="dot"></i>attitude</span><span><i class="ring"></i>nozzle command — sits opposite</span><span><i class="clamp"></i>nozzle clamp</span></div>
+        <div class="key"><span><i class="dot"></i>attitude</span><span><i class="ring"></i>nozzle command, sits opposite</span><span><i class="clamp"></i>nozzle clamp</span></div>
         <div class="grid2">
           <div class="tile"><span class="k">r1 · about X</span><span class="v" id="attR1">--</span><span class="sub" id="attR1b">--</span></div>
           <div class="tile"><span class="k">r2 · about Y</span><span class="v" id="attR2">--</span><span class="sub" id="attR2b">--</span></div>
@@ -493,7 +493,7 @@ function saveUi() { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } ca
 
 // ── Vehicle state ────────────────────────────────────────────────────────────
 let vehicleState    = null;   // DISARMED | ARMED | FLYING, from telemetry
-let killed          = false;  // KILL sent — shown as KILLED until the next arm
+let killed          = false;  // KILL sent, shown as KILLED until the next arm
 let expectDisarm    = false;  // the page asked for this disarm; don't report it as unexpected
 let expectMotorsOff = false;  // the page asked FLYING → ARMED
 
@@ -528,9 +528,9 @@ function onVehicleState(t) {
   if (!confirmTimers.arm) set('arm', s === 'FLYING' ? 'MOTORS OFF' : 'ARM');
 
   set('armNote',
-      inDemo()       ? 'Demo — simulated telemetry. Controls are disabled until the vehicle connects.'
+      inDemo()       ? 'Demo: simulated telemetry. Controls are disabled until the vehicle connects.'
     : s === 'FLYING' ? (esc === 'ARMING'
-                          ? 'ESCs arming — held at minimum, ' + Math.ceil(t.throttle.armRemainingMs / 1000) + ' s'
+                          ? 'ESCs arming, held at minimum, ' + Math.ceil(t.throttle.armRemainingMs / 1000) + ' s'
                           : 'Throttle live. Integrators ' +
                             (t.ctl && t.ctl.integrating ? 'on.' : 'held at zero until the throttle threshold.'))
     : s === 'ARMED'  ? 'Servos live, motors off. Tilt by hand: the nozzle must oppose.'
@@ -671,7 +671,7 @@ document.addEventListener('visibilitychange', () => {
     expectDisarm = true;
     zeroThrottleUi();
     send('disarm');
-    log('page hidden — disarmed');
+    log('page hidden, disarmed');
   }
 });
 
@@ -691,7 +691,7 @@ function showAttitude(a) {
     set('attR' + n + 'b', 'CF ' + fmtDeg(cf) + ' · Fu ' + fmtDeg(fu) + ' · ' + dr.toFixed(0) + '°/s');
   });
   set('attSource', 'controller input: ' + (a.fusion ? 'Fusion AHRS' : 'complementary filter'));
-  set('attNote', (a.valid ? '' : 'Fusion converging — hold still. ') + 'Yaw rate ' + a.yawRateDps.toFixed(0) + '°/s (rate only, no heading).' +
+  set('attNote', (a.valid ? '' : 'Fusion converging, hold still. ') + 'Yaw rate ' + a.yawRateDps.toFixed(0) + '°/s (rate only, no heading).' +
       (a.offset1Dps === undefined ? '' : ' Gyro offset learned ' + a.offset1Dps.toFixed(2) + ' / ' + a.offset2Dps.toFixed(2) + '°/s.'));
 }
 
@@ -951,7 +951,7 @@ function drawGraph(g) {
     x.fillRect(xa, bandY, Math.max(0.5, xb - xa + 0.3), 5);
   }
 
-  // Limits (red) and threshold (green) — solid, labelled.
+  // Limits (red) and threshold (green): solid, labelled.
   const guide = (v, color, label) => {
     if (!(v > lo && v < hi)) return;
     const y = Math.round(Y(v)) + 0.5;
@@ -1134,12 +1134,12 @@ $('zeroImu').onclick = async () => {
   zeroing = true;
   $('zeroImu').disabled = true;
   set('zeroImu', 'Hold still…');
-  log('zeroing IMU — keep the vehicle still');
+  log('zeroing IMU, keep the vehicle still');
   const r = await send('zero');
   zeroing = false;
   set('zeroImu', 'Zero IMU');
   $('zeroImu').disabled = vehicleState !== 'DISARMED' || inDemo();
-  if (r.ok) log('IMU zeroed — attitude re-levelled to this ground');
+  if (r.ok) log('IMU zeroed, attitude re-levelled to this ground');
 };
 
 // ── Servo trim ───────────────────────────────────────────────────────────────
@@ -1205,7 +1205,7 @@ function applyTrim(t, axes = ['x', 'y']) {
 // ── Motor balance ────────────────────────────────────────────────────────────
 // Static split of the commanded throttle between the two rotors: ESC1 x ratio, ESC2 x
 // (2 - ratio). Their torques cancel the yaw only when they match, and this is the knob for
-// that. Not a yaw controller — nothing feeds back; the LQR differential stays 0.
+// that. Not a yaw controller: nothing feeds back, and the LQR differential stays 0.
 let balCfg = null, balShown = 1.0, balTouchedMs = 0, pendingBal = null;
 
 const clampBal = v => Number.isFinite(v) ? Math.max(balCfg.min, Math.min(balCfg.max, v)) : balCfg.def;
@@ -1336,7 +1336,7 @@ function saveRecording() {
     .concat(rec.rows.map(r => [Math.round(r[0] - t0) / 1000, ...r]));
   const info = [
     ['key', 'value'],
-    ['source', rec.source === 'demo' ? 'DEMO — simulated telemetry, not the vehicle' : 'vehicle'],
+    ['source', rec.source === 'demo' ? 'DEMO: simulated telemetry, not the vehicle' : 'vehicle'],
     ['started', rec.startedAt.toISOString()],
     ['rows', n],
     ['duration_s', secs],
@@ -1367,7 +1367,7 @@ $('clearBtn').onclick = () => {
 };
 $('saveBtn').onclick = saveRecording;
 
-/* xlsx:begin — minimal .xlsx writer: SpreadsheetML parts in an uncompressed zip. No library. */
+/* xlsx:begin. Minimal .xlsx writer: SpreadsheetML parts in an uncompressed zip. No library. */
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
   for (let n = 0; n < 256; n++) {
@@ -1464,8 +1464,8 @@ function makeXlsx(sheets) {  // [{name, rows}] → Blob
 
 // ── Demo mode ────────────────────────────────────────────────────────────────
 // No vehicle on this network: simulated 50 Hz telemetry so the page can be seen with the ESP
-// off. A 44 s cycle — disarmed, armed with hand tilts, flying with a throttle ramp past the
-// integrator threshold — driven through the same u = −K·x · gain law as the firmware. Numbers
+// off. A 44 s cycle covering disarmed, armed with hand tilts, and flying with a throttle ramp past the
+// integrator threshold, driven through the same u = −K·x · gain law as the firmware. Numbers
 // below only make the simulation look right; nothing reads them for control. Commands are
 // never sent.
 const DEMO = {hz: 50, cycleS: 44, clampDeg: 8.594, iLimit: 0.4, iThrPct: 70, K: [1.13552229, 0.28421317, 0.29383259], gain: 0.3};
@@ -1524,7 +1524,7 @@ function demoFrame(t) {
 function startDemo() {
   if (inDemo() || !DEMO_ALLOWED) return;
   setLink('demo', 'DEMO');
-  log('No vehicle on this network — demo mode: simulated telemetry, controls disabled.');
+  log('No vehicle on this network. Demo mode: simulated telemetry, controls disabled.');
   hist.length = 0;
   vehicleState = null;
   lastUptimeMs = null;
@@ -1549,10 +1549,10 @@ function stopDemo() {
   hist.length = 0;
   vehicleState = null;
   lastUptimeMs = null;
-  log('Vehicle connected — demo stopped.');
+  log('Vehicle connected, demo stopped.');
 }
 
-// ── Routing — one handler per frame type ─────────────────────────────────────
+// ── Routing: one handler per frame type ─────────────────────────────────────
 const HANDLERS = {
   config(m) {
     if (m.gains) {
@@ -1588,7 +1588,7 @@ const HANDLERS = {
     showControl(m.ctl);
     recordSample(m);
     recordRow(m);
-    // Show the gains the vehicle reports — unless this page changed them in the last 1.5 s.
+    // Show the gains the vehicle reports, unless this page changed them in the last 1.5 s.
     if (gainCfg && m.gains && Date.now() - gainTouchedMs > 1500) {
       const axis = a => ({kth: a[0], kq: a[1], ki: a[2]});
       const g = {scale: m.gains.scale, x: axis(m.gains.x), y: axis(m.gains.y)};

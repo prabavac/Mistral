@@ -1,10 +1,10 @@
-// mtf01.h — MicoAir MTF-01P optical flow + rangefinder driver — Mistral
+// mtf01.h: MicoAir MTF-01P optical flow + rangefinder driver for Mistral
 //
 // One module, two measurements: angular optical flow and a downward range (up to
 // 12 m), over UART at cfg::MTF01_BAUD (115200).
 //
 // NON-BLOCKING. update() parses only the bytes already sitting in the UART buffer
-// and returns immediately — it never waits for a frame. Do NOT use
+// and returns immediately; it never waits for a frame. Do NOT use
 // Serial.readBytes() or any other blocking read here: if the sensor drops out, a
 // blocking read stalls the control loop. The tvc-drone reference project calls
 // this out as a crash cause.
