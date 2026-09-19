@@ -34,6 +34,7 @@ struct Status {
     uint32_t armRemainingMs;    // ARMING: time left in the ESC_MIN hold; otherwise 0
     float    normalised;        // commanded throttle 0..1, held even while disarmed
     float    differential;      // commanded yaw differential
+    float    balance;           // static rotor balance ratio, ESC1 x balance / ESC2 x (2 - balance)
     uint16_t esc1_us, esc2_us;  // last pulse commanded to each ESC
     bool     saturated;         // a motor command was clipped to the ESC range
 };
@@ -59,6 +60,11 @@ void setNormalised(float value);
 // stand. Each motor is clipped to 0..1, which sets saturated. At zero throttle both
 // motors stay at min whatever the differential.
 void setDifferential(float delta);
+
+// Static rotor balance: ESC1 gets throttle x ratio, ESC2 throttle x (2 - ratio), so their
+// torques can be matched and the airframe stops yawing. Clamped to cfg::ESC_BALANCE_RANGE
+// (NaN reads as the default). Survives disarm — it is a calibration, not a command.
+void setBalance(float ratio);
 
 // Advance arming and auto-cut, then write both ESCs. Call once per control tick.
 void update();

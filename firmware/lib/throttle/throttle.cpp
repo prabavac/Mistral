@@ -10,6 +10,7 @@ throttle::State state        = throttle::State::DISARMED;
 uint32_t        armStartMs   = 0;
 float           normalised   = 0.0f;
 float           differential = 0.0f;
+float           balance      = cfg::ESC_BALANCE_DEF;
 uint32_t        lastChangeMs = 0;  // millis() of the last change to `normalised`
 bool            saturated    = false;
 
@@ -47,8 +48,8 @@ void applyOutputs() {
         writeEsc(cfg::ESC2_PIN, cfg::ESC_MIN_US, esc2Us, esc2Duty);
         return;
     }
-    const float m1 = normalised + differential;
-    const float m2 = normalised - differential;
+    const float m1 = normalised * balance + differential;
+    const float m2 = normalised * (2.0f - balance) - differential;
     saturated = m1 < 0.0f || m1 > 1.0f || m2 < 0.0f || m2 > 1.0f;
     writeEsc(cfg::ESC1_PIN, fractionToUs(clampOrZero(m1, 0.0f, 1.0f)), esc1Us, esc1Duty);
     writeEsc(cfg::ESC2_PIN, fractionToUs(clampOrZero(m2, 0.0f, 1.0f)), esc2Us, esc2Duty);
@@ -98,6 +99,14 @@ void throttle::setNormalised(float value) {
     applyOutputs();
 }
 
+void throttle::setBalance(float ratio) {
+    if (std::isnan(ratio)) ratio = cfg::ESC_BALANCE_DEF;
+    balance = ratio < cfg::ESC_BALANCE_RANGE[0]   ? cfg::ESC_BALANCE_RANGE[0]
+              : ratio > cfg::ESC_BALANCE_RANGE[1] ? cfg::ESC_BALANCE_RANGE[1]
+                                                  : ratio;
+    applyOutputs();
+}
+
 void throttle::setDifferential(float delta) {
     differential = clampOrZero(delta, -1.0f, 1.0f);
     applyOutputs();
@@ -135,5 +144,5 @@ throttle::Status throttle::status() {
         const uint32_t elapsed = millis() - armStartMs;
         armRemainingMs         = elapsed < cfg::ARM_HOLD_MS ? cfg::ARM_HOLD_MS - elapsed : 0;
     }
-    return {state, armRemainingMs, normalised, differential, esc1Us, esc2Us, saturated};
+    return {state, armRemainingMs, normalised, differential, balance, esc1Us, esc2Us, saturated};
 }

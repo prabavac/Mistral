@@ -88,6 +88,16 @@ void handleCommand(const uint8_t* data, size_t len) {
         commands.throttle = value;
         portEXIT_CRITICAL(&lock);
         queueAck(id, true, nullptr);
+    } else if (strcmp(type, "balance") == 0) {
+        JsonVariant ratio = doc["ratio"];
+        if (!(ratio.is<float>() || ratio.is<int>())) {
+            queueAck(id, false, "balance needs a numeric ratio");
+            return;
+        }
+        portENTER_CRITICAL(&lock);
+        commands.balance = ratio.as<float>();
+        portEXIT_CRITICAL(&lock);
+        queueAck(id, true, nullptr);
     } else if (strcmp(type, "zero") == 0) {
         // Not setEvent: re-zeroing must never touch the held throttle. The loop refuses it
         // unless DISARMED.
@@ -173,6 +183,11 @@ void sendConfig(AsyncWebSocketClient* client) {
         a["centreUs"]       = cals[axis]->centreUs;
         a["usPerNozzleDeg"] = cals[axis]->usPerServoDeg * cals[axis]->gearRatio * cals[axis]->dir;
     }
+    JsonObject balance = doc["balance"].to<JsonObject>();
+    balance["def"]     = cfg::ESC_BALANCE_DEF;
+    balance["min"]     = cfg::ESC_BALANCE_RANGE[0];
+    balance["max"]     = cfg::ESC_BALANCE_RANGE[1];
+
     char         buf[1024];
     const size_t n = serializeJson(doc, buf, sizeof buf);
     client->text(buf, n);
@@ -224,6 +239,7 @@ void sendTelemetry() {
     esc["armRemainingMs"] = t.esc.armRemainingMs;
     esc["normalised"]     = t.esc.normalised;
     esc["differential"]   = t.esc.differential;
+    esc["balance"]        = t.esc.balance;
     esc["esc1Us"]         = t.esc.esc1_us;
     esc["esc2Us"]         = t.esc.esc2_us;
     esc["saturated"]      = t.esc.saturated;

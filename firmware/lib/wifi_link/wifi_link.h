@@ -26,6 +26,7 @@
 //     {"type":"throttle","id":4,"value":0.35}      0..1
 //     {"type":"trim","id":5,"axis":"x","us":12}    absolute trim, µs, clamped to ±cfg::TVC_TRIM_MAX_US
 //     {"type":"zero","id":8}                       re-zero the IMU: DISARMED and still only, ~1.5 s
+//     {"type":"balance","id":9,"ratio":1.02}       static rotor balance, clamped to cfg::ESC_BALANCE_RANGE
 //     {"type":"gains","id":7,"scale":0.3,"x":{"kth":1.136,"kq":0.284,"ki":0},"y":{...}}
 //                                                  full set, clamped in lqr::setGains
 //
@@ -38,12 +39,13 @@
 //         commands are rejected on receipt.
 //     {"type":"config","gains":{"scale":{"def":..,"min":..,"max":..},
 //      "x":{"kth":{"design":..,"def":..,"min":..,"max":..},"kq":{..},"ki":{..}},"y":{..}},
-//      "trim":{"maxUs":..,"x":{"centreUs":..,"usPerNozzleDeg":..},"y":{..}}}
+//      "trim":{"maxUs":..,"x":{"centreUs":..,"usPerNozzleDeg":..},"y":{..}},
+//      "balance":{"def":..,"min":..,"max":..}}
 //         sent to each client as it connects: defaults and allowed ranges for the Tuning panel.
 //         usPerNozzleDeg is signed (includes the servo's dir).
 //     {"type":"telemetry","uptimeMs":..,"state":"DISARMED|ARMED|FLYING",
 //      "throttle":{"state":"DISARMED|ARMING|ARMED","armRemainingMs":..,"normalised":..,
-//                  "differential":..,"esc1Us":..,"esc2Us":..,"saturated":..},
+//                  "differential":..,"balance":..,"esc1Us":..,"esc2Us":..,"saturated":..},
 //      "tvc":{"xDeg":..,"yDeg":..,"xUs":..,"yUs":..,"xTrimUs":..,"yTrimUs":..,
 //             "xSaturated":..,"ySaturated":..},
 //      "att":{"cf1Deg":..,"cf2Deg":..,"fu1Deg":..,"fu2Deg":..,"dr1Dps":..,"dr2Dps":..,
@@ -58,6 +60,7 @@
 
 #include <cstdint>
 
+#include <mistral_config.h>
 #include <attitude.h>
 #include <lqr.h>
 #include <state_machine.h>
@@ -73,6 +76,7 @@ struct Commands {
     // Levels: the latest received value, held between takes.
     float   throttle;  // 0..1 — reset to 0 by kill, arm and disarm
     int16_t trimXUs, trimYUs;
+    float   balance = cfg::ESC_BALANCE_DEF;  // static rotor balance ratio
     lqr::Gains gains;     // the latest received "gains" command
     uint32_t   gainsSeq;  // incremented per received "gains" command; the loop applies on change
     // Computed by takeCommands(): a valid frame arrived within cfg::LINK_TIMEOUT_MS.

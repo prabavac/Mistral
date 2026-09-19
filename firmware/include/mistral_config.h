@@ -113,6 +113,14 @@ constexpr uint16_t ESC_MIN_US  = 1000;  // disarmed / zero thrust
 constexpr uint16_t ESC_MAX_US  = 2000;
 constexpr uint32_t ARM_HOLD_MS = 3000;  // ESC_MIN hold before throttle is accepted
 
+// Motor balance (owner's call, 2026-09-15): a static ratio that splits the commanded throttle
+// between the two rotors so their torques cancel and the airframe stops yawing. ESC1 gets
+// throttle x ratio, ESC2 gets throttle x (2 - ratio), so the average is unchanged. 1.0 = equal.
+// Clamped in throttle::setBalance; the ground station sends it live. Not a yaw controller: the
+// LQR differential stays separate and is still 0.
+constexpr float ESC_BALANCE_DEF      = 1.0f;
+constexpr float ESC_BALANCE_RANGE[2] = {0.9f, 1.1f};
+
 // Auto-cut: disarm when throttle is non-zero and unchanged for this long, so an
 // unattended bench rig can't run the pack flat.
 constexpr uint32_t THROTTLE_AUTOCUT_MS = 60000;  // TBD
@@ -240,9 +248,10 @@ constexpr float LQR_KI_BOOT_FACTOR = 0.0f;  // × the solved integral gain
 
 // Integrators run only in FLYING with the commanded throttle at or above this. Below it the
 // vehicle is still on the pad and can't rotate, so the loop is open and they would wind up
-// before lift-off; they are held at zero instead. PLACEHOLDER (owner's call, 2026-09-13)
-// until thrust is measured: set it just under lift-off throttle.
-constexpr float LQR_INTEGRATE_MIN_THROTTLE = 0.50f;
+// before lift-off; they are held at zero instead. 0.70 (owner's call, 2026-09-15), just under
+// the lift-off throttle measured in both 2026-09-15 flights (76-80 %): at the old 0.50 the
+// integrators ran for ~2 s on the pad before the vehicle left the ground.
+constexpr float LQR_INTEGRATE_MIN_THROTTLE = 0.70f;
 
 // Thrust gain scheduling: nozzle torque ∝ thrust, so u is scaled by NOMINAL / thrust, with a
 // floor so the division can't blow up. OFF — do not enable without the user's explicit

@@ -18,7 +18,9 @@ STATE     r <r1> <r2>  dr <dr1> <dr2>  i <ir1> <ir2>  u <u1> <u2>  us <X> <Y>
 > Do **not** enable `THRUST_SCHED` or widen `TVC_CLAMP_RAD` without the owner's explicit
 > say-so. Gains and servo trim are live in the ground page's **Tuning** panel and clamped in
 > firmware: scale 0–1.0; angle 0.5–1.5×, rate 0.5–2×, integral 0–1.5× of the solved K; trim
-> ±200 µs per servo. Both are remembered in the browser: once a trim is copied into
+> ±200 µs per servo. **Motor balance** (0.9–1.1, 1.0 = equal) splits the throttle between the
+> rotors — ESC1 × ratio, ESC2 × (2 − ratio) — to cancel the yaw spin; it is remembered in the
+> browser too. It is a calibration, not a yaw controller: nothing feeds back. Both are remembered in the browser: once a trim is copied into
 > `SERVO_*_CENTRE_US`, press **Zero** under Servo trim. **Integral action boots OFF**: raise it
 > on the stand after reading the bias, and have it on before any free flight.
 
@@ -77,28 +79,30 @@ wrong: do not proceed.
 Owner confirmed 2026-09-13, before the controller was wired. Repeat if the IMU mount
 changes. `ATTITUDE_USE_FUSION` picks the controller's input (currently Fusion).
 
-## 4. FLYING — integrals accumulate only at ≥ 50 % throttle
+## 4. FLYING — integrals accumulate only at ≥ 70 % throttle
 
 **Props off and airframe restrained: this step spins the motors.**
 
 1. From ARMED, tap **FLY** twice. ESCs hold at minimum for ~3 s (countdown), then the pill
    reads FLYING and the note says integrators **held at zero**. Integral gain boots at 0:
    raise X and Y **Integral** in the Tuning panel first, or `i` stays 0 at any throttle.
-2. Hold a small steady tilt and raise the throttle to below 50 %: `i` stays 0.000. (Untick
+2. Hold a small steady tilt and raise the throttle to below 70 %: `i` stays 0.000. (Untick
    *Snap to zero on release* if you want the slider to stay put.)
-3. Raise it to 50 % or more: the note says integrators **on**, and `i` on the tilted axis
+3. Raise it to 70 % or more: the note says integrators **on**, and `i` on the tilted axis
    grows and stops at ±0.400. If u is saturated, it stops growing in the direction that
    would push further.
    **Setting it back down level does NOT unwind the integral, and that is expected.** The
    loop is open on the bench: the servos move but the vehicle doesn't rotate, so the
    error never reverses. The integral holds (or keeps creeping from any small residual
    angle) and the nozzle stays offset by about −0.3 × 0.294 × i rad (~2° at i = 0.4).
-4. Drop the throttle below 50 %: `i` returns to 0.000. (MOTORS OFF, DISARM and KILL also
+4. Drop the throttle below 70 %: `i` returns to 0.000. (MOTORS OFF, DISARM and KILL also
    zero it; that path is host-tested.)
 5. **DISARM**: servos centre at X 1626 µs, Y 1584 µs, or run the 2b sweep if it's enabled.
 
-`LQR_INTEGRATE_MIN_THROTTLE` (50 %) is a placeholder until thrust is measured: set it just
-under lift-off throttle.
+`LQR_INTEGRATE_MIN_THROTTLE` is 70 % (owner's call, 2026-09-15), just under the lift-off
+throttle measured in both 2026-09-15 flights (76–80 %). Re-check it whenever the mass or the
+battery changes: it must sit just under the throttle at which the vehicle actually leaves the
+ground, or the integrators wind up on the pad.
 
 ## 5. Only then
 

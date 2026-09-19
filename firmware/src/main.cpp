@@ -80,6 +80,7 @@ void loop() {
     // the network side set when it received it. Kill is applied last so it always wins.
     const wifi_link::Commands cmd = wifi_link::takeCommands();
     throttle::setNormalised(cmd.throttle);
+    throttle::setBalance(cmd.balance);  // clamped to cfg::ESC_BALANCE_RANGE
     if (cmd.arm) {
         const bool ok = state_machine::requestArm({imuReading.valid, att.valid, cmd.throttle});
         wifi_link::ack(cmd.armId, ok, "attitude not ready");

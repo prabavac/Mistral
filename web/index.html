@@ -163,7 +163,7 @@ main{flex:1;min-height:0;padding:16px 20px 20px}
 .num:focus{outline:3px solid rgba(0,122,255,.45);outline-offset:1px}
 .gain-row.modified .num{box-shadow:inset 0 0 0 1.5px var(--blue)}
 .gain-meta{margin-top:3px;font:500 11px/1.2 var(--mono);color:var(--label3)}
-.inspector.waiting #gainRows,.inspector.waiting #trimRows{opacity:.4;pointer-events:none}
+.inspector.waiting #gainRows,.inspector.waiting #trimRows,.inspector.waiting #balanceRows{opacity:.4;pointer-events:none}
 .trim-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .trim-head .btn{flex:none;height:26px;padding:0 12px;font-size:12px}
 .card-head .btn.mini{flex:none;height:28px;padding:0 12px;font-size:12px}
@@ -327,6 +327,7 @@ main{flex:1;min-height:0;padding:16px 20px 20px}
   <p id="gainsNote" class="note">Waiting for the vehicle's limits.</p>
   <div id="gainRows"></div>
   <div id="trimRows"></div>
+  <div id="balanceRows"></div>
 </aside>
 </div>
 </div>
@@ -463,7 +464,7 @@ function cancelLevel(type) {
 // Servo trim IS remembered (owner's call, 2026-09-14). Once a trim is copied into the config
 // centre, zero it in the panel, or the remembered trim is added on top of the new centre.
 // Map: storage key → how to re-apply it.
-const PERSIST   = {gains: v => applyGains(v), trim: v => applyTrim(v)};
+const PERSIST   = {gains: v => applyGains(v), trim: v => applyTrim(v), balance: v => applyBalance(v)};
 const PREFS_KEY = 'mistralPrefs';
 
 let prefs = {};
@@ -1201,6 +1202,51 @@ function applyTrim(t, axes = ['x', 'y']) {
   else axes.forEach(a => sendLevel('trim', {axis: a, us: c[a]}, 'trim-' + a));
 }
 
+// ── Motor balance ────────────────────────────────────────────────────────────
+// Static split of the commanded throttle between the two rotors: ESC1 x ratio, ESC2 x
+// (2 - ratio). Their torques cancel the yaw only when they match, and this is the knob for
+// that. Not a yaw controller — nothing feeds back; the LQR differential stays 0.
+let balCfg = null, balShown = 1.0, balTouchedMs = 0, pendingBal = null;
+
+const clampBal = v => Number.isFinite(v) ? Math.max(balCfg.min, Math.min(balCfg.max, v)) : balCfg.def;
+const balMeta  = v => 'ESC1 ' + (v >= 1 ? '+' : '−') + (Math.abs(v - 1) * 100).toFixed(1) + '% · ESC2 ' +
+                      (v >= 1 ? '−' : '+') + (Math.abs(v - 1) * 100).toFixed(1) + '% · ' + balCfg.min.toFixed(3) + '–' + balCfg.max.toFixed(3);
+
+function buildBalanceRow() {
+  const attrs = ' min="' + balCfg.min + '" max="' + balCfg.max + '" step="0.001"';
+  $('balanceRows').innerHTML = '<div class="gain-axis"><div class="trim-head"><h3>Motor balance</h3>' +
+    '<button id="balEqual" class="btn" type="button">Equal</button></div>' +
+    '<p class="note">Speeds one rotor up and the other down by the same amount, to cancel the yaw spin.</p>' +
+    '<div class="gain-row" id="row-bal"><label for="rng-bal"><span>ESC1 : ESC2 <small>ratio</small></span></label>' +
+    '<div class="gain-ctl"><div class="range-wrap"><input id="rng-bal" type="range"' + attrs + '>' +
+    '<span class="tick" style="--p:' + (balCfg.def - balCfg.min) / (balCfg.max - balCfg.min) + '" title="equal"></span></div>' +
+    '<input id="num-bal" class="num" type="number"' + attrs + '></div>' +
+    '<div class="gain-meta" id="meta-bal"></div></div></div>';
+  const rng = $('rng-bal'), num = $('num-bal');
+  rng.addEventListener('input', () => { num.value = (+rng.value).toFixed(3); applyBalance(+rng.value); });
+  num.addEventListener('change', () => { const v = clampBal(+num.value); num.value = v.toFixed(3); rng.value = v; applyBalance(v); });
+  $('balEqual').onclick = () => { applyBalance(balCfg.def); log('motors back to equal'); };
+}
+
+function showBalance(v) {
+  balShown = v;
+  const rng = $('rng-bal'), num = $('num-bal');
+  if (document.activeElement !== num) num.value = v.toFixed(3);
+  if (document.activeElement !== rng) rng.value = v;
+  $('row-bal').classList.toggle('modified', Math.abs(v - balCfg.def) > 0.0005);
+  set('meta-bal', balMeta(v));
+}
+
+function applyBalance(v) {
+  if (!balCfg) { pendingBal = v; return; }
+  const c = clampBal(+v);
+  balTouchedMs = Date.now();
+  remember('balance', c);
+  showBalance(c);
+  if (inDemo()) demoBal = c;
+  else sendLevel('balance', {ratio: c});
+}
+
 // ── Recording → .xlsx ────────────────────────────────────────────────────────
 // Record keeps every telemetry frame in memory (50 Hz) until Stop; Save writes an .xlsx with a
 // "Flight" sheet (one row per frame, columns in signal-path order) and an "Info" sheet.
@@ -1215,6 +1261,7 @@ const REC_COLUMNS = [
   ['esc_arm_remaining_ms', m => m.throttle.armRemainingMs],
   ['throttle_pct', m => r3(m.throttle.normalised * 100)],
   ['differential', m => r3(m.throttle.differential)],
+  ['esc_balance', m => r3(m.throttle.balance)],
   ['esc1_us', m => m.throttle.esc1Us],
   ['esc2_us', m => m.throttle.esc2Us],
   ['esc_saturated', m => b01(m.throttle.saturated)],
@@ -1421,11 +1468,12 @@ function makeXlsx(sheets) {  // [{name, rows}] → Blob
 // integrator threshold — driven through the same u = −K·x · gain law as the firmware. Numbers
 // below only make the simulation look right; nothing reads them for control. Commands are
 // never sent.
-const DEMO = {hz: 50, cycleS: 44, clampDeg: 8.594, iLimit: 0.4, iThrPct: 50, K: [1.13552229, 0.28421317, 0.29383259], gain: 0.3};
+const DEMO = {hz: 50, cycleS: 44, clampDeg: 8.594, iLimit: 0.4, iThrPct: 70, K: [1.13552229, 0.28421317, 0.29383259], gain: 0.3};
 const demoStartS = Number(params.get('demo')) > 0 ? Number(params.get('demo')) : 60;
 let demoIr = [0, 0];
 let demoGains = null;  // set from the Tuning panel while in demo mode
 let demoTrim  = {x: 0, y: 0};
+let demoBal   = 1.0;
 
 // Mirrors the firmware's config frame: solved K, integral off at boot, ranges 0.5–1.5× / 0.5–2× / 0–1.5×.
 function demoGainConfig() {
@@ -1433,7 +1481,8 @@ function demoGainConfig() {
                        kq:  {design: DEMO.K[1], def: DEMO.K[1], min: DEMO.K[1] * 0.5, max: DEMO.K[1] * 2},
                        ki:  {design: DEMO.K[2], def: 0, min: 0, max: DEMO.K[2] * 1.5}});
   return {type: 'config', gains: {scale: {def: DEMO.gain, min: 0, max: 1}, x: axis(), y: axis()},
-          trim: {maxUs: 200, x: {centreUs: 1626, usPerNozzleDeg: 38.4}, y: {centreUs: 1584, usPerNozzleDeg: -51.2}}};
+          trim: {maxUs: 200, x: {centreUs: 1626, usPerNozzleDeg: 38.4}, y: {centreUs: 1584, usPerNozzleDeg: -51.2}},
+          balance: {def: 1.0, min: 0.9, max: 1.1}};
 }
 const demoDefaults = () => ({scale: DEMO.gain, x: {kth: DEMO.K[0], kq: DEMO.K[1], ki: 0}, y: {kth: DEMO.K[0], kq: DEMO.K[1], ki: 0}});
 
@@ -1442,7 +1491,7 @@ function demoFrame(t) {
   const state = c < 6 ? 'DISARMED' : c < 16 ? 'ARMED' : c < 40 ? 'FLYING' : 'DISARMED';
   const flyT = c - 16;
   const esc = state !== 'FLYING' ? 'DISARMED' : flyT < 3 ? 'ARMING' : 'ARMED';
-  const thr = esc === 'ARMED' ? Math.min(0.62, (flyT - 3) * 0.08) : 0;
+  const thr = esc === 'ARMED' ? Math.min(0.80, (flyT - 3) * 0.08) : 0;
   const amp = state === 'ARMED' ? 1 : state === 'FLYING' ? 0.35 : 0.04;
   const bias = state === 'FLYING' ? 0.8 : 0;
   const noise = () => (Math.random() - 0.5) * 0.12;
@@ -1460,8 +1509,8 @@ function demoFrame(t) {
   });
   return {
     type: 'telemetry', uptimeMs: Math.round(t * 1000), state,
-    throttle: {state: esc, armRemainingMs: esc === 'ARMING' ? Math.round((3 - flyT) * 1000) : 0, normalised: thr, differential: 0,
-               esc1Us: 1000 + Math.round(thr * 1000), esc2Us: 1000 + Math.round(thr * 1000), saturated: false},
+    throttle: {state: esc, armRemainingMs: esc === 'ARMING' ? Math.round((3 - flyT) * 1000) : 0, normalised: thr, differential: 0, balance: demoBal,
+               esc1Us: 1000 + Math.round(thr * demoBal * 1000), esc2Us: 1000 + Math.round(thr * (2 - demoBal) * 1000), saturated: false},
     tvc: {xDeg: u[0], yDeg: u[1], xUs: Math.round(1626 + demoTrim.x + u[0] * 3 * 12.8), yUs: Math.round(1584 + demoTrim.y - u[1] * 4 * 12.8),
           xTrimUs: demoTrim.x, yTrimUs: demoTrim.y, xSaturated: false, ySaturated: false},
     att: {cf1Deg: r[0] + 0.15 * Math.sin(0.7 * t), cf2Deg: r[1] - 0.1, fu1Deg: r[0], fu2Deg: r[1], dr1Dps: dr[0], dr2Dps: dr[1],
@@ -1482,6 +1531,7 @@ function startDemo() {
   demoIr = [0, 0];
   demoGains = null;
   demoTrim  = {x: 0, y: 0};
+  demoBal   = 1.0;
   HANDLERS.config(demoGainConfig());
   let t = Math.max(0, demoStartS - HISTORY_MS / 1000);
   for (; t < demoStartS; t += 1 / DEMO.hz) recordSample(demoFrame(t));  // fill the graphs at once
@@ -1494,6 +1544,7 @@ function stopDemo() {
   demoTimer = null;
   demoGains = null;
   demoTrim  = {x: 0, y: 0};
+  demoBal   = 1.0;
   if (rec.on) toggleRecord();
   hist.length = 0;
   vehicleState = null;
@@ -1515,6 +1566,12 @@ const HANDLERS = {
       buildTrimRows();
       showTrim({x: clampTrim(trimShown.x), y: clampTrim(trimShown.y)});
       if (pendingTrim) { const t = pendingTrim; pendingTrim = null; applyTrim(t); }
+    }
+    if (m.balance) {
+      balCfg = m.balance;
+      buildBalanceRow();
+      showBalance(clampBal(balShown));
+      if (pendingBal !== null) { const v = pendingBal; pendingBal = null; applyBalance(v); }
     }
   },
   telemetry(m) {
@@ -1540,6 +1597,10 @@ const HANDLERS = {
     // Same for trim.
     if (trimCfg && Date.now() - trimTouchedMs > 1500 && (m.tvc.xTrimUs !== trimShown.x || m.tvc.yTrimUs !== trimShown.y)) {
       showTrim({x: m.tvc.xTrimUs, y: m.tvc.yTrimUs});
+    }
+    if (balCfg && m.throttle.balance !== undefined && Date.now() - balTouchedMs > 1500 &&
+        Math.abs(m.throttle.balance - balShown) > 0.0005) {
+      showBalance(m.throttle.balance);
     }
   },
   ack(m) {
